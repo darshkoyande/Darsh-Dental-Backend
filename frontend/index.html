@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lumen Dental – Clinical Portal</title>
+  <meta name="description" content="Advanced FHIR R4 &amp; ABDM compliant periodontal charting system for dental clinics.">
+  <meta name="theme-color" content="#f0f4ff">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="modules.css?v=4">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════ ROLE SELECTION SCREEN ═══ -->
+  <div id="login-screen" class="login-overlay">
+    <div class="login-card">
+
+      <!-- Logo -->
+      <div class="login-logo-wrap">
+        <div class="login-logo">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+      </div>
+
+      <h1 class="login-title">Lumen Dental</h1>
+      <p class="login-subtitle">Interactive Clinical Dashboard &middot; Select your role to continue</p>
+
+      <!-- Role Cards -->
+      <div class="login-roles">
+
+        <!-- Dentist Role -->
+        <button class="role-card" id="role-dentist" onclick="loginAs('dentist')">
+          <div class="role-icon role-icon-dentist">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2C8 2 5 5 5 8c0 2 .5 3.5 1.5 5L9 21h6l2.5-8C18.5 11.5 19 10 19 8c0-3-3-6-7-6z"/>
+            </svg>
+          </div>
+          <div class="role-info">
+            <div class="role-title">Login as Dentist</div>
+            <div class="role-name">Dr. Anita Mehra &middot; BDS, MDS Prosthodontics</div>
+            <div class="role-desc">Full access to patient directory, charting, treatment plans, and messaging</div>
+          </div>
+          <div class="role-arrow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </button>
+
+        <!-- Patient Role -->
+        <button class="role-card" id="role-patient" onclick="loginAs('patient')">
+          <div class="role-icon role-icon-patient">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </div>
+          <div class="role-info">
+            <div class="role-title">Login as Patient</div>
+            <div class="role-name">Darsh &middot; Roll No: 24202C0045</div>
+            <div class="role-desc">Read-only dental health map, appointment history, and secure messaging</div>
+          </div>
+          <div class="role-arrow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </button>
+
+      </div><!-- /login-roles -->
+
+      <!-- Footer -->
+      <div class="login-footer">
+        <span class="login-footer-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          End-to-end encrypted &middot; HIPAA compliant
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </span>
+        <div class="login-copyright">&copy; 2026 Lumen Dental &middot; Clinical Portal v2.0</div>
+      </div>
+
+    </div><!-- /login-card -->
+  </div><!-- /login-screen -->
+
+  <!-- ═══════════════════════════════════════════ NAVIGATION ═══ -->
+  <nav class="nav" id="main-nav">
+    <a href="#" class="nav-brand">
+      <div class="nav-logo">L</div>
+      <div class="nav-brand-text">
+        <span class="nav-brand-name">Lumen Dental</span>
+        <span class="nav-brand-sub">Periodontal Charting Module</span>
+      </div>
+    </a>
+
+    <div class="nav-links">
+      <button class="nav-link" onclick="switchModule('patients')">Patients</button>
+      <button class="nav-link" onclick="switchModule('schedule')">Schedule</button>
+      <button class="nav-link active" onclick="switchModule('charting')">Charting</button>
+      <button class="nav-link" onclick="switchModule('imaging')">Imaging</button>
+      <button class="nav-link" onclick="switchModule('reports')">Reports</button>
+    </div>
+
+    <div class="nav-actions">
+      <div class="live-badge" id="live-badge">
+        <div class="live-dot"></div>
+        Live sync
+      </div>
+
+      <!-- Profile Button + Dropdown -->
+      <div class="profile-menu-wrap" id="profile-menu-wrap">
+        <button class="profile-btn" id="profile-btn" onclick="toggleProfileMenu()" aria-haspopup="true" aria-expanded="false">
+          <div class="avatar" id="user-avatar">AM</div>
+          <div class="profile-btn-info">
+            <span class="profile-btn-name" id="profile-btn-name">Dr. Mehra</span>
+            <span class="profile-btn-role" id="profile-btn-role">Dentist</span>
+          </div>
+        </button>
+
+        <div class="profile-dropdown" id="profile-dropdown" role="menu">
+          <!-- Doctor header -->
+          <div class="profile-dropdown-header">
+            <div class="profile-dropdown-name" id="profile-dropdown-name">Dr. Anita Mehra</div>
+            <div class="profile-dropdown-sub" id="profile-dropdown-sub">BDS, MDS Prosthodontics</div>
+          </div>
+
+          <div class="profile-dropdown-divider"></div>
+
+          <!-- Switch role -->
+          <button class="profile-dropdown-item" id="switch-role-btn" onclick="switchRoleFromMenu()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 3l4 4-4 4"/><path d="M20 7H4"/>
+              <path d="M8 21l-4-4 4-4"/><path d="M4 17h16"/>
+            </svg>
+            <span id="switch-role-label">Switch to Patient View</span>
+          </button>
+
+          <div class="profile-dropdown-divider"></div>
+
+          <!-- Sign out -->
+          <button class="profile-dropdown-item danger" onclick="signOut()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════ MAIN ═══════════ -->
+  <main class="main-content" id="app">
+
+    <!-- ═══════════════════════ PATIENTS MODULE ═══════════════ -->
+    <div class="module-view active" id="module-patients">
+      <div class="module-header">
+        <h2>Patients</h2>
+        <button class="btn btn-primary" onclick="togglePatientForm()">+ Add New Patient</button>
+      </div>
+
+      <div id="patient-form-container" class="form-card" style="display: none; margin-bottom: 24px;">
+        <div class="form-header">
+          <h3>Add New Patient</h3>
+          <button type="button" class="btn-close" onclick="togglePatientForm()">×</button>
+        </div>
+        
+        <form id="add-patient-form" onsubmit="handlePatientSubmit(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="patient-name">Full Name</label>
+              <input type="text" id="patient-name" placeholder="e.g. Aarav Mehta" required>
+            </div>
+            
+            <div class="form-group shadow-sm">
+              <label for="patient-age">Age</label>
+              <input type="number" id="patient-age" placeholder="e.g. 47" min="0" max="120" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="patient-gender">Gender</label>
+              <select id="patient-gender" required>
+                <option value="" disabled selected>Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group full-width">
+              <label for="patient-doctor">Consulting Doctor</label>
+              <input type="text" id="patient-doctor" placeholder="e.g. Dr. Priya Sharma, BDS, MDS" required>
+            </div>
+          </div>
+          
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="togglePatientForm()">Cancel</button>
+            <button type="submit" class="btn-primary">Add Patient</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="patients-list" id="patients-list">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>Loading patients…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ SCHEDULE MODULE ═══════════════ -->
+    <div class="module-view" id="module-schedule">
+      <div class="module-header">
+        <h2>Schedule</h2>
+      </div>
+      <div class="appointments-list" id="appointments-list">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>Loading appointments…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ CHARTING MODULE ═══════════════ -->
+    <div class="module-view active" id="module-charting">
+      <!-- PATIENT HEADER -->
+      <div class="patient-header" id="patient-header">
+        <div class="loading-state" style="flex:1; padding: 16px 0;">
+          <div class="spinner"></div>
+        </div>
+      </div>
+
+      <!-- STATISTICS GRID -->
+      <div class="stats-grid" id="stats-grid">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- TABS CONTAINER -->
+      <div class="tabs-container">
+        <div class="tab-bar">
+          <button class="tab-btn active" id="tab-btn-perio" onclick="switchTab('perio')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="21" x2="9" y2="3"/>
+            </svg>
+            Perio Chart
+          </button>
+          <button class="tab-btn" id="tab-btn-viz" onclick="switchTab('viz')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Visualization
+          </button>
+          <button class="tab-btn" id="tab-btn-ai" onclick="switchTab('ai')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+            </svg>
+            AI Analysis
+            <span class="badge-ai badge-high" id="ai-risk-badge">High</span>
+          </button>
+        </div>
+
+        <!-- ── PERIO CHART CONTENT ── -->
+        <div class="tab-content active" id="content-perio">
+          <div class="chart-container" id="perio-chart-container">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <span>Loading periodontal chart…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── VISUALIZATION CONTENT ── -->
+        <div class="tab-content" id="content-viz">
+          <div class="viz-container" id="viz-container">
+            <div class="loading-state">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── AI ANALYSIS CONTENT ── -->
+        <div class="tab-content" id="content-ai">
+          <div class="ai-container" id="ai-container">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <span>Running AI analysis…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ IMAGING MODULE ═══════════════ -->
+    <div class="module-view" id="module-imaging">
+      <div class="module-header">
+        <h2>Imaging Records</h2>
+      </div>
+      <div class="imaging-list" id="imaging-list">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>Loading imaging records…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ REPORTS MODULE ═══════════════ -->
+    <div class="module-view" id="module-reports">
+      <div class="module-header">
+        <h2>Clinical Reports</h2>
+      </div>
+      <div class="reports-list" id="reports-list">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>Loading reports…</span>
+        </div>
+      </div>
+    </div>
+
+  </main><!-- /main -->
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js?v=4"></script>
+</body>
+</html>
