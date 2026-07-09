@@ -1,0 +1,197 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   DentalClub Design System — Global Styles
+   ============================================ */
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 50%, #eef2ff 100%);
+    color: #1e293b;
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background-color: #1e6bb8;
+    color: #ffffff;
+  }
+}
+
+@layer components {
+  /* Glass Card Effect */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glass-card:hover {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+  }
+
+  /* Sidebar Nav Link */
+  .nav-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+           text-slate-500 transition-all duration-200 ease-out;
+  }
+
+  .nav-link:hover {
+    @apply bg-dental-50 text-dental-600;
+  }
+
+  .nav-link.active {
+    @apply bg-gradient-to-r from-dental-500 to-dental-600 text-white shadow-glow-blue;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold rounded-full;
+  }
+
+  .badge-emerald {
+    @apply bg-clinical-emerald-light text-emerald-700;
+  }
+
+  .badge-amber {
+    @apply bg-clinical-amber-light text-amber-700;
+  }
+
+  .badge-red {
+    @apply bg-clinical-red-light text-red-700;
+  }
+
+  .badge-blue {
+    @apply bg-clinical-blue-light text-blue-700;
+  }
+
+  /* Tooth Interactive */
+  .tooth-container {
+    @apply relative cursor-pointer transition-all duration-200 ease-out;
+  }
+
+  .tooth-container:hover {
+    transform: scale(1.08);
+    filter: brightness(1.05);
+  }
+
+  .tooth-container:active {
+    transform: scale(0.98);
+  }
+
+  /* Popover */
+  .popover {
+    @apply absolute z-[100] bg-white rounded-xl shadow-xl border border-slate-100
+           p-2 min-w-[160px] animate-fade-in;
+  }
+
+  .popover-item {
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
+           cursor-pointer transition-colors duration-150;
+  }
+
+  .popover-item:hover {
+    @apply bg-slate-50;
+  }
+
+  /* Audit Log Entry */
+  .audit-entry {
+    @apply flex items-start gap-2 px-3 py-2 text-xs border-l-2 animate-slide-up;
+  }
+
+  /* Chat Bubble */
+  .chat-bubble {
+    @apply max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed;
+  }
+
+  .chat-bubble-doctor {
+    @apply bg-dental-500 text-white rounded-br-md;
+  }
+
+  .chat-bubble-patient {
+    @apply bg-slate-100 text-slate-800 rounded-bl-md;
+  }
+
+  /* Perio Chart Input */
+  .perio-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .perio-input::-webkit-inner-spin-button,
+  .perio-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .perio-input:focus {
+    transform: scale(1.1);
+    z-index: 10;
+    position: relative;
+  }
+}
+
+/* ── Side Panel Animation ────────────────────── */
+@keyframes slidePanel {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-panel {
+  animation: slidePanel 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer utilities {
+  /* Custom Scrollbar */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Horizontal scrollbar variant */
+  .scrollbar-thin::-webkit-scrollbar:horizontal {
+    height: 5px;
+  }
+
+  /* Text Gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-dental-500 to-dental-700;
+  }
+}

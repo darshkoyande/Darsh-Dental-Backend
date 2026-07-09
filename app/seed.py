@@ -132,12 +132,6 @@ def seed_database():
         }
     }
 
-    # Add Maxilla Teeth
-    # 18 to 27
-    for t_num in range(11, 29):
-        # Swap FDI notations order to match maxilla left-to-right (18 to 28)
-        pass
-        
     fdi_maxilla = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28]
     
     for tooth_num in fdi_maxilla:

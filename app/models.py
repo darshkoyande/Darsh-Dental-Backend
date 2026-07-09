@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database import Base
 
 class Patient(Base):
@@ -17,7 +17,7 @@ class Patient(Base):
     last_visit = Column(String, nullable=True)
     next_visit = Column(String, nullable=True)
     treatment_status = Column(String, default="In Plan")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     charts = relationship("PerioChart", back_populates="patient", cascade="all, delete-orphan")
 
@@ -28,7 +28,7 @@ class PerioChart(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
     status = Column(String, default="In Plan") # Draft, In Plan, Completed
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = relationship("Patient", back_populates="charts")
     teeth_data = relationship("ToothData", back_populates="chart", cascade="all, delete-orphan")
@@ -106,7 +106,7 @@ class Appointment(Base):
     notes = Column(Text, nullable=True)
     duration_minutes = Column(Integer, default=30)
     reminder_sent = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = relationship("Patient", foreign_keys=[patient_id])
 
@@ -121,7 +121,7 @@ class ImagingRecord(Base):
     findings = Column(Text, nullable=True)
     file_url = Column(String, nullable=True)  # Path to stored image/file
     radiologist_notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = relationship("Patient", foreign_keys=[patient_id])
 
@@ -137,7 +137,7 @@ class ClinicalReport(Base):
     summary = Column(Text, nullable=True)
     status = Column(String, default="Draft")  # Draft, Approved, Signed, Published
     pdf_url = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = relationship("Patient", foreign_keys=[patient_id])
 
@@ -145,7 +145,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     action = Column(String, nullable=False) # e.g. CREATE, READ, UPDATE, DELETE
     resource_type = Column(String, nullable=False) # e.g. Patient, Chart, Tooth
     resource_id = Column(String, nullable=True)

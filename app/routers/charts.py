@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 from app import schemas, crud, database, stats
 
@@ -72,7 +72,7 @@ def read_chart(chart_id: int, db: Session = Depends(database.get_db)):
     db_chart = crud.get_chart(db, chart_id=chart_id)
     if not db_chart:
         raise HTTPException(
-            status_code=status.HTTP_444_NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Periodontal chart not found"
         )
     teeth_responses = [crud.map_tooth_db_to_response(t) for t in db_chart.teeth_data]
@@ -191,7 +191,7 @@ def run_ai_analysis(chart_id: int, db: Session = Depends(database.get_db)):
     recommended_treatment_plan.append("Smoking cessation counseling (if applicable).")
     
     return schemas.AIAnalysisResponse(
-        analysis_timestamp=datetime.utcnow(),
+        analysis_timestamp=datetime.now(timezone.utc),
         diagnosis_summary=diagnosis_summary,
         severity_level=severity_level,
         risk_assessment=risk_assessment,

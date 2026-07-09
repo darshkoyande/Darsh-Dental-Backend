@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 from app import models
 
@@ -18,7 +18,7 @@ CODE_SUPPURATION = "30169-7"
 
 def get_fhir_patient(patient: models.Patient) -> Dict[str, Any]:
     # Calculate a mock birth year based on age
-    birth_year = datetime.utcnow().year - patient.age
+    birth_year = datetime.now(timezone.utc).year - patient.age
     birth_date = f"{birth_year}-01-01"
 
     identifiers = []
@@ -199,7 +199,7 @@ def get_fhir_diagnostic_report(chart: models.PerioChart, patient: models.Patient
     bundle = {
         "resourceType": "Bundle",
         "type": "document",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "entry": [
             {
                 "fullUrl": f"http://lumendental.com/fhir/DiagnosticReport/{report['id']}",

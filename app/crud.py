@@ -190,7 +190,7 @@ def update_appointment(db: Session, appointment_id: int, appointment: schemas.Ap
     db_appointment = get_appointment(db, appointment_id)
     if not db_appointment:
         return None
-    for key, value in appointment.dict().items():
+    for key, value in appointment.model_dump().items():
         if key != "patient_id":
             setattr(db_appointment, key, value)
     db.commit()
@@ -230,7 +230,7 @@ def update_imaging_record(db: Session, imaging_id: int, imaging: schemas.Imaging
     db_imaging = get_imaging_record(db, imaging_id)
     if not db_imaging:
         return None
-    for key, value in imaging.dict().items():
+    for key, value in imaging.model_dump().items():
         if key != "patient_id":
             setattr(db_imaging, key, value)
     db.commit()
@@ -271,7 +271,7 @@ def update_clinical_report(db: Session, report_id: int, report: schemas.Clinical
     db_report = get_clinical_report(db, report_id)
     if not db_report:
         return None
-    for key, value in report.dict().items():
+    for key, value in report.model_dump().items():
         if key != "patient_id":
             setattr(db_report, key, value)
     db.commit()

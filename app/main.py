@@ -1,19 +1,29 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, SessionLocal
-from app import models, crud
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import os
+from app.config import settings
+from app.database import engine
+from app import models
+from app.middleware import audit_logging_middleware
 from app.routers import patients, charts, fhir, abdm, audits, schedule, imaging, reports
 
-# Create DB Tables
-models.Base.metadata.create_all(bind=engine)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    models.Base.metadata.create_all(bind=engine)
+    yield
+
 
 app = FastAPI(
-    title="Lumen Dental Periodontal Charting Backend",
-    description="FHIR R4 and ABDM Compliant Periodontal Charting backend for clinical records.",
-    version="1.0.0",
+    title=settings.app_name,
+    description=settings.app_description,
+    version=settings.app_version,
+    lifespan=lifespan,
 )
 
-# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,66 +32,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Audit Logging Middleware
-@app.middleware("http")
-async def audit_logging_middleware(request: Request, call_next):
-    response = await call_next(request)
-    
-    path = request.url.path
-    # Exclude Swagger/OpenAPI docs and audit logs themselves from spamming audit logs
-    if path.startswith(("/patients", "/charts", "/fhir", "/abdm", "/schedule", "/imaging", "/reports")) and not path.endswith("docs"):
-        db = SessionLocal()
-        try:
-            method = request.method
-            action_map = {
-                "GET": "READ",
-                "POST": "CREATE",
-                "PUT": "UPDATE",
-                "PATCH": "UPDATE",
-                "DELETE": "DELETE"
-            }
-            action = action_map.get(method, "ACCESS")
-            
-            resource_type = "API"
-            if "/patients" in path:
-                resource_type = "Patient"
-            elif "/charts" in path:
-                resource_type = "Chart"
-            elif "/fhir" in path:
-                resource_type = "FHIR_Resource"
-            elif "/abdm" in path:
-                resource_type = "ABDM_Exchange"
-            elif "/schedule" in path:
-                resource_type = "Appointment"
-            elif "/imaging" in path:
-                resource_type = "ImagingRecord"
-            elif "/reports" in path:
-                resource_type = "ClinicalReport"
-            
-            # Extract basic identifier from path if possible
-            parts = path.strip("/").split("/")
-            resource_id = parts[-1] if len(parts) > 1 else None
+app.middleware("http")(audit_logging_middleware)
 
-            client_ip = request.client.host if request.client else None
-            
-            crud.create_audit_log(
-                db=db,
-                action=action,
-                resource_type=resource_type,
-                resource_id=resource_id,
-                details=f"{method} {path} - Response Status: {response.status_code}",
-                client_ip=client_ip,
-                user="Dr. Priya Sharma" # Mocked logged-in user
-            )
-        except Exception as e:
-            # Prevent audit logging errors from disrupting application lifecycle
-            print(f"Audit log writing failed: {e}")
-        finally:
-            db.close()
-            
-    return response
-
-# Include Routers
 app.include_router(patients.router)
 app.include_router(charts.router)
 app.include_router(schedule.router)
@@ -91,12 +43,8 @@ app.include_router(fhir.router)
 app.include_router(abdm.router)
 app.include_router(audits.router)
 
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-import os
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 
-# Serve frontend static files
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 
 @app.get("/")
 async def read_root(request: Request):
@@ -110,6 +58,7 @@ async def read_root(request: Request):
         "status": "online",
         "standards": ["FHIR R4", "ABDM"]
     }
+
 
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
