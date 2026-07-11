@@ -1,6 +1,11 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import List, Optional
 from datetime import datetime
+
+# ── B4: FDI Wisdom Tooth Numbers ──────────────────────────────────────────────
+# When a pediatric patient submits, these teeth should auto-resolve to "Missing"
+# rather than being validated as errors.
+WISDOM_TEETH = {18, 28, 38, 48}
 
 # --- SITE DATA SCHEMA ---
 class SiteData(BaseModel):
@@ -23,6 +28,15 @@ class ToothDataCreate(BaseModel):
     dl: SiteData = Field(default_factory=SiteData, description="Distolingual site")
     l: SiteData = Field(default_factory=SiteData, description="Lingual site")
     ml: SiteData = Field(default_factory=SiteData, description="Mesiolingual site")
+
+    # B4: Silently coerce wisdom teeth to "Missing" for pediatric submissions.
+    # No error is raised — the field is simply normalised so the chart stays
+    # consistent whether or not those teeth appear in the payload.
+    @model_validator(mode='after')
+    def coerce_wisdom_tooth_status(self) -> 'ToothDataCreate':
+        if self.tooth_number in WISDOM_TEETH:
+            self.status = "Missing"
+        return self
 
 class ToothDataResponse(ToothDataCreate):
     id: int
@@ -185,3 +199,59 @@ class AbdmLinkResponse(BaseModel):
     status: str = "LINKED"
     transaction_id: str
     linked_care_contexts: List[str]
+
+
+# ── B1: Authentication Schemas ────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    username: str = Field(..., description="Unique login username")
+    password: str = Field(..., description="Plain-text password (will be hashed)")
+    role: str = Field(..., description="\"doctor\" or \"patient\"")
+    name: str = Field(..., description="Display name shown in the UI")
+    linked_patient_id: Optional[int] = Field(None, description="DB patient.id for patient-role users")
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    name: str
+    linked_patient_id: Optional[int]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginResponse(BaseModel):
+    token: str = Field(..., description="Base64-encoded mock JWT (non-cryptographic, demo only)")
+    user: UserResponse
+
+class TokenData(BaseModel):
+    """Decoded payload from a mock JWT token."""
+    user_id: int
+    username: str
+    role: str
+
+
+# ── B2/B3: Chat Schemas ───────────────────────────────────────────────────────
+
+class ChatMessageCreate(BaseModel):
+    sender_id: int = Field(..., description="User ID of the message sender")
+    receiver_id: int = Field(..., description="User ID of the intended recipient")
+    message_text: str = Field(..., description="The message body")
+
+class ChatMessageResponse(BaseModel):
+    id: int
+    sender_id: int
+    receiver_id: int
+    message_text: str
+    timestamp: datetime
+    is_read: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+class UnreadCountResponse(BaseModel):
+    user_id: int
+    unread_count: int

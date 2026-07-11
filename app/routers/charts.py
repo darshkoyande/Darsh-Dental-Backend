@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 from app import schemas, crud, database, stats
+from app.schemas import WISDOM_TEETH
 
 router = APIRouter(
     tags=["charts"]
@@ -16,6 +17,19 @@ def create_chart_for_patient(patient_id: int, chart_in: schemas.PerioChartCreate
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient not found"
         )
+
+    # B4: If teeth are submitted, silently drop any wisdom tooth entry that
+    # was not included in the payload (pediatric patients won't have them).
+    # The WISDOM_TEETH validator on ToothDataCreate already forces status="Missing"
+    # for wisdom entries that *are* submitted, so we only need to handle absence here.
+    if chart_in.teeth:
+        submitted_numbers = {t.tooth_number for t in chart_in.teeth}
+        # Remove wisdom teeth that were not explicitly included in the payload
+        chart_in.teeth = [
+            t for t in chart_in.teeth
+            if t.tooth_number not in WISDOM_TEETH or t.tooth_number in submitted_numbers
+        ]
+
     db_chart = crud.create_chart(db, patient_db_id=patient_id, chart_in=chart_in)
     
     # Map DB teeth to schema response
@@ -104,6 +118,10 @@ def update_chart_tooth(chart_id: int, tooth_num: int, tooth_schema: schemas.Toot
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid tooth number: {tooth_num}. Must be in FDI notation."
         )
+
+    # B4: Wisdom teeth submitted by pediatric patients are silently forced
+    # to status="Missing" by the ToothDataCreate model_validator before
+    # reaching this endpoint — no additional handling needed here.
 
     updated_tooth = crud.update_tooth_data(db, chart_id=chart_id, tooth_number=tooth_num, tooth_schema=tooth_schema)
     return crud.map_tooth_db_to_response(updated_tooth)

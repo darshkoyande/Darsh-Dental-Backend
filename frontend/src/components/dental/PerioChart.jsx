@@ -17,6 +17,14 @@ import { Activity, Droplets, TrendingDown, RotateCcw, Info } from 'lucide-react'
 const UPPER_TEETH = Array.from({ length: 16 }, (_, i) => i + 1);
 
 const LOWER_TEETH = Array.from({ length: 16 }, (_, i) => i + 17);
+
+/**
+ * F4: Wisdom tooth positions (1-based sequential numbering):
+ *   Upper: position 1 (FDI 18), position 16 (FDI 28)
+ *   Lower: position 17 (FDI 48), position 32 (FDI 38)
+ */
+const WISDOM_TEETH_POSITIONS = new Set([1, 16, 17, 32]);
+
 const SITES = ['Mesial', 'Mid', 'Distal'];
 function getDefaultPerioData(patientId) {
   const data = {};
@@ -82,13 +90,23 @@ export default function PerioChart() {
   const [perioData, setPerioData] = useState(() => getInitialPerioData(patientId));
   const [activeArch, setActiveArch] = useState('upper');
   const [hoveredTooth, setHoveredTooth] = useState(null);
+
+  // F4: Pediatric view — hide wisdom teeth for patients aged 16 or younger
+  const isPediatric = activePatient?.age != null && activePatient.age <= 16;
+  const displayUpper = isPediatric
+    ? UPPER_TEETH.filter((n) => !WISDOM_TEETH_POSITIONS.has(n))
+    : UPPER_TEETH;
+  const displayLower = isPediatric
+    ? LOWER_TEETH.filter((n) => !WISDOM_TEETH_POSITIONS.has(n))
+    : LOWER_TEETH;
+
   // Persist perio data to localStorage keyed by patientId
   useEffect(() => {
     try {
       localStorage.setItem(`dc_perioData_${patientId}`, JSON.stringify(perioData));
     } catch { /* ignore */ }
   }, [perioData, patientId]);
-  const teeth = activeArch === 'upper' ? UPPER_TEETH : LOWER_TEETH;
+  const teeth = activeArch === 'upper' ? displayUpper : displayLower;
   const handlePocketChange = useCallback((toothNum, siteIdx, value) => {
     const num = parseInt(value, 10);
     if (isNaN(num) || num < 1 || num > 9) return;
@@ -188,6 +206,14 @@ export default function PerioChart() {
               Lower Arch
             </button>
           </div>
+          {/* F4: Pediatric badge next to arch toggle */}
+          {isPediatric && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                             bg-violet-100 border border-violet-200 text-violet-700
+                             text-[10px] font-semibold">
+              Pediatric Chart (28 teeth)
+            </span>
+          )}
           <button
             onClick={handleReset}
             className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"

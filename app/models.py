@@ -3,6 +3,37 @@ from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database import Base
 
+
+class User(Base):
+    """Application user for authentication. Can be a doctor or a patient."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, nullable=False)  # "doctor" | "patient"
+    name = Column(String, nullable=False)  # Display name
+    linked_patient_id = Column(Integer, ForeignKey("patients.id"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    linked_patient = relationship("Patient", foreign_keys=[linked_patient_id])
+
+
+class ChatMessage(Base):
+    """Secure chat message between a doctor and a patient."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    message_text = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_read = Column(Boolean, default=False)
+
+    sender = relationship("User", foreign_keys=[sender_id])
+    receiver = relationship("User", foreign_keys=[receiver_id])
+
+
 class Patient(Base):
     __tablename__ = "patients"
 

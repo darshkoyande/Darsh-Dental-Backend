@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
 import Navbar from './components/layout/Navbar';
 import Dashboard from './views/Dashboard';
@@ -7,6 +7,21 @@ import PatientsView from './views/PatientsView';
 import ChatView from './views/ChatView';
 import LoginView from './components/auth/LoginView';
 import { useRole } from './context/RoleContext';
+
+/**
+ * ProtectedRoute — F2: Wraps a route that requires the "dentist" role.
+ * Patients who navigate directly to a doctor-only URL are redirected to /.
+ *
+ * @param {string} roleRequired - 'dentist' | 'patient' (currently only 'dentist' is used)
+ * @param {ReactNode} element   - The component to render if allowed
+ */
+function ProtectedRoute({ roleRequired, element }) {
+  const { userRole } = useRole();
+  if (userRole !== roleRequired) {
+    return <Navigate to="/" replace />;
+  }
+  return element;
+}
 
 /**
  * App — Root layout with login gate and authenticated shell.
@@ -31,8 +46,19 @@ export default function App() {
         <main className="flex-1 p-6 overflow-y-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/charting" element={<ChartingView />} />
-            <Route path="/patients" element={<PatientsView />} />
+            {/* Doctor-only routes — patients are redirected to / */}
+            <Route
+              path="/charting"
+              element={
+                <ProtectedRoute roleRequired="dentist" element={<ChartingView />} />
+              }
+            />
+            <Route
+              path="/patients"
+              element={
+                <ProtectedRoute roleRequired="dentist" element={<PatientsView />} />
+              }
+            />
             <Route path="/chat" element={<ChatView />} />
           </Routes>
         </main>

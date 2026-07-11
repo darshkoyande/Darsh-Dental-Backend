@@ -8,5 +8,19 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    proxy: {
+      // Forward all backend API paths to the FastAPI server
+      '/auth':          'http://localhost:8000',
+      '/chat':          'http://localhost:8000',
+      '/notifications': 'http://localhost:8000',
+      '/patients':      'http://localhost:8000',
+      '/charts':        'http://localhost:8000',
+      '/appointments':  'http://localhost:8000',
+      '/imaging':       'http://localhost:8000',
+      '/reports':       'http://localhost:8000',
+      '/fhir':          'http://localhost:8000',
+      '/abdm':          'http://localhost:8000',
+      '/audit-logs':    'http://localhost:8000',
+    },
   },
 })

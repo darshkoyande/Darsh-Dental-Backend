@@ -24,6 +24,14 @@ import { getPatientById } from '../../services/patientService';
 const UPPER_TEETH = Array.from({ length: 16 }, (_, i) => i + 1);   // 1–16
 const LOWER_TEETH = Array.from({ length: 16 }, (_, i) => i + 17);  // 17–32
 
+/**
+ * F4: Wisdom tooth positions in 1-based sequential numbering:
+ *   Upper arch → position 1 (FDI 18) and position 16 (FDI 28)
+ *   Lower arch → position 17 (FDI 48) and position 32 (FDI 38)
+ * When isPediatric, these positions are hidden from both arches.
+ */
+const WISDOM_TEETH_POSITIONS = new Set([1, 16, 17, 32]);
+
 function getInitialTeethStatus(patientId) {
   try {
     const stored = localStorage.getItem(`dc_teethStatus_${patientId}`);
@@ -57,6 +65,15 @@ function getInitialTeethStatus(patientId) {
 export default function ChartingGrid({ readOnly = false }) {
   const { activePatient } = useRole();
   const patientId = activePatient?.id || 'default';
+
+  // F4: Pediatric view — patients aged 16 or younger see 28 teeth (no wisdom teeth)
+  const isPediatric = activePatient?.age != null && activePatient.age <= 16;
+  const displayUpper = isPediatric
+    ? UPPER_TEETH.filter((n) => !WISDOM_TEETH_POSITIONS.has(n))
+    : UPPER_TEETH;
+  const displayLower = isPediatric
+    ? LOWER_TEETH.filter((n) => !WISDOM_TEETH_POSITIONS.has(n))
+    : LOWER_TEETH;
 
   const [teethStatus, setTeethStatus] = useState(() => getInitialTeethStatus(patientId));
   const [auditLog, setAuditLog] = useState([
@@ -135,11 +152,21 @@ export default function ChartingGrid({ readOnly = false }) {
                 <ClipboardList className="w-5 h-5 text-dental-500" />
                 {chartTitle}
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {readOnly
-                  ? 'Read-only view of your dental health'
-                  : 'Click any tooth to view details · Right-click to update status'}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-slate-400">
+                  {readOnly
+                    ? 'Read-only view of your dental health'
+                    : 'Click any tooth to view details · Right-click to update status'}
+                </p>
+                {/* F4: Pediatric badge */}
+                {isPediatric && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                                   bg-violet-100 border border-violet-200 text-violet-700
+                                   text-[10px] font-semibold">
+                    Pediatric View (28 teeth)
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="hidden md:flex items-center gap-3">
@@ -171,7 +198,7 @@ export default function ChartingGrid({ readOnly = false }) {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
             <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
-              {UPPER_TEETH.map((num) => (
+              {displayUpper.map((num) => (
                 <Tooth
                   key={num}
                   toothNumber={num}
@@ -203,7 +230,7 @@ export default function ChartingGrid({ readOnly = false }) {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
             <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
-              {LOWER_TEETH.map((num) => (
+              {displayLower.map((num) => (
                 <Tooth
                   key={num}
                   toothNumber={num}
