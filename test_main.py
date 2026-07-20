@@ -242,3 +242,25 @@ def test_audit_logs():
     assert len(response.json()) > 0
     actions = [log["action"] for log in response.json()]
     assert "READ" in actions or "CREATE" in actions or "ABDM_LINK" in actions
+
+def test_delete_patient():
+    # 1. Create a patient to delete
+    payload = {
+        "name": "To Be Deleted",
+        "age": 35,
+        "gender": "Female",
+        "primary_doctor": "Dr. Priya Sharma",
+        "status": "Active"
+    }
+    create_res = client.post("/patients/", json=payload)
+    assert create_res.status_code == 201
+    patient_id = create_res.json()["id"]
+
+    # 2. Delete the patient
+    delete_res = client.delete(f"/patients/{patient_id}")
+    assert delete_res.status_code == 204
+
+    # 3. Verify patient is deleted
+    get_res = client.get(f"/patients/{patient_id}")
+    assert get_res.status_code == 404
+

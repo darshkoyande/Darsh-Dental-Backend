@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 
 import { useRole } from '../../context/RoleContext';
-import { getPatientById } from '../../services/patientService';
 
 import { Activity, Droplets, TrendingDown, RotateCcw, Info } from 'lucide-react';
 /**
@@ -60,10 +59,6 @@ function getInitialPerioData(patientId) {
     const stored = localStorage.getItem(`dc_perioData_${patientId}`);
     if (stored) return JSON.parse(stored);
   } catch { /* fallthrough */ }
-  try {
-    const patient = getPatientById(patientId);
-    if (patient && patient.perioChart) return patient.perioChart;
-  } catch { /* fallthrough */ }
   return getDefaultPerioData(patientId);
 }
 function getPocketColor(depth) {
@@ -90,6 +85,11 @@ export default function PerioChart() {
   const [perioData, setPerioData] = useState(() => getInitialPerioData(patientId));
   const [activeArch, setActiveArch] = useState('upper');
   const [hoveredTooth, setHoveredTooth] = useState(null);
+
+  // Sync state when active patient changes
+  useEffect(() => {
+    setPerioData(getInitialPerioData(patientId));
+  }, [patientId]);
 
   // F4: Pediatric view — hide wisdom teeth for patients aged 16 or younger
   const isPediatric = activePatient?.age != null && activePatient.age <= 16;

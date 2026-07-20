@@ -3,7 +3,6 @@ import { ClipboardList, Trash2, Clock, ArrowDown } from 'lucide-react';
 import Tooth from './Tooth';
 import ToothDetailPanel from './ToothDetailPanel';
 import { useRole } from '../../context/RoleContext';
-import { getPatientById } from '../../services/patientService';
 
 /**
  * ChartingGrid — Complete 32-tooth adult dental map with Clinical Audit Log.
@@ -12,13 +11,6 @@ import { getPatientById } from '../../services/patientService';
  *
  * Props:
  *   readOnly (boolean) — If true, teeth cannot be edited (patient view).
- *
- * ┌─────────────────────────────────────────────┐
- * │  BACKEND: PUT /api/charts/tooth/:id         │
- * │  Updates individual tooth tracking states   │
- * │  inside SQL database tables. Replace local  │
- * │  setTeethStatus with API call.              │
- * └─────────────────────────────────────────────┘
  */
 
 const UPPER_TEETH = Array.from({ length: 16 }, (_, i) => i + 1);   // 1–16
@@ -38,29 +30,35 @@ function getInitialTeethStatus(patientId) {
     if (stored) return JSON.parse(stored);
   } catch { /* fallthrough */ }
 
-  try {
-    const patient = getPatientById(patientId);
-    if (patient && patient.teethState) return patient.teethState;
-  } catch { /* fallthrough */ }
-
   const status = {};
   for (let i = 1; i <= 32; i++) {
     status[i] = 'Healthy';
   }
   
-  if (patientId === 'DC-2001') {
+  // Normalize patientId to check both string/numeric variants
+  const pid = String(patientId);
+  if (pid === 'DC-2001' || pid === '1') {
     status[14] = 'Cavity';
-  } else if (patientId === 'DC-2002') {
+  } else if (pid === 'DC-2002' || pid === '2') {
     status[3]  = 'Treated';
     status[19] = 'Missing';
-  } else if (patientId === 'DC-2003') {
+  } else if (pid === 'DC-2003' || pid === '3') {
     status[32] = 'Cavity'; // Wisdom tooth
   }
-  // For any other patient (newly added), all 32 teeth stay "Healthy".
-  // Charting data only changes when a dentist explicitly interacts
-  // with this patient's profile in the ChartingGrid.
   return status;
 }
+
+const getInitialAuditLog = (pId) => {
+  const pid = String(pId);
+  return [
+    {
+      tooth: (pid === 'DC-2002' || pid === '2') ? 3 : 14,
+      status: 'Treated',
+      timestamp: new Date(Date.now() - 86400000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      date: new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    },
+  ];
+};
 
 export default function ChartingGrid({ readOnly = false }) {
   const { activePatient } = useRole();
@@ -76,16 +74,16 @@ export default function ChartingGrid({ readOnly = false }) {
     : LOWER_TEETH;
 
   const [teethStatus, setTeethStatus] = useState(() => getInitialTeethStatus(patientId));
-  const [auditLog, setAuditLog] = useState([
-    {
-      tooth: patientId === 'DC-2002' ? 3 : 14,
-      status: 'Treated',
-      timestamp: new Date(Date.now() - 86400000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      date: new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    },
-  ]);
+  const [auditLog, setAuditLog] = useState(() => getInitialAuditLog(patientId));
   const [selectedTooth, setSelectedTooth] = useState(null);
   const auditEndRef = useRef(null);
+
+  // Sync state when active patient changes
+  useEffect(() => {
+    setTeethStatus(getInitialTeethStatus(patientId));
+    setAuditLog(getInitialAuditLog(patientId));
+    setSelectedTooth(null);
+  }, [patientId]);
 
   // Persist teeth status to localStorage keyed by patientId
   useEffect(() => {

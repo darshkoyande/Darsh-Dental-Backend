@@ -17,7 +17,7 @@ def seed_database():
     
     print("Database cleaned.")
 
-    # 2. Create Patient Aarav Mehta
+    # 2. Create Patients (Aarav Mehta, Maya Patel, Rahul Singh)
     aarav = models.Patient(
         patient_id="PT-04821",
         name="Aarav Mehta",

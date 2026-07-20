@@ -42,3 +42,13 @@ def read_patient_by_external(patient_id_str: str, db: Session = Depends(database
             detail="Patient not found"
         )
     return db_patient
+
+@router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_patient(patient_id: int, db: Session = Depends(database.get_db)):
+    success = crud.delete_patient(db, patient_id=patient_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found"
+        )
+    return None

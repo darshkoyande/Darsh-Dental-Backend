@@ -39,6 +39,14 @@ def create_patient(db: Session, patient: schemas.PatientCreate):
     db.refresh(db_patient)
     return db_patient
 
+def delete_patient(db: Session, patient_id: int):
+    db_patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if db_patient:
+        db.delete(db_patient)
+        db.commit()
+        return True
+    return False
+
 
 # --- MAPPING HELPERS ---
 def map_tooth_db_to_response(db_tooth: models.ToothData) -> schemas.ToothDataResponse:

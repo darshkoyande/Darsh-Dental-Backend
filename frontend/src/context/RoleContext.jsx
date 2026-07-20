@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import axios from 'axios';
 import { fetchPatientsFromStorage } from '../services/patientService';
 
 const AppContext = createContext(null);
@@ -17,31 +18,33 @@ const AppContext = createContext(null);
  * localStorage keys:
  *   dc_currentUser    — Persisted user session
  *   dc_activePatient  — Persisted patient selection
- *
- * ┌─────────────────────────────────────────────┐
- * │  BACKEND ENDPOINT: POST /api/auth/login     │
- * │  Replace login() body with fetch() call     │
- * │  when backend session management is ready.  │
- * └─────────────────────────────────────────────┘
  */
 
+/** Map backend patient (snake_case) to the shape frontend components expect. */
+function mapBackendPatient(p) {
+  return {
+    ...p,
+    displayId: p.patient_id,
+    fullName: p.name,
+    lastVisit: p.last_visit || null,
+    nextAppointment: p.next_visit || null,
+    concerns: p.treatment_status || 'General',
+    initials: p.name
+      ? p.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+      : '?',
+  };
+}
+
 /* ── Patient Directory Data ──────────────────────
- * Now dynamically sourced from the shared patientService.
- * This ensures patients added via the form are also
- * visible in the charting flow's PatientDirectory selector.
- *
- * ┌──────────────────────────────────────────────────┐
- * │  BACKEND SWAP:                                   │
- * │  When patientService switches to Axios, this     │
- * │  getter will automatically use the network data. │
- * └──────────────────────────────────────────────────┘
+ * Legacy helpers kept for backward compatibility with
+ * components that still import them. These read from
+ * localStorage as a fallback.
  */
 export function getPatientDirectory() {
   return fetchPatientsFromStorage();
 }
 
 // Legacy export for backward compatibility — evaluates lazily
-// Components should prefer getPatientDirectory() for live data
 export const PATIENT_DIRECTORY = fetchPatientsFromStorage();
 
 function loadFromStorage(key, fallback) {
@@ -86,20 +89,21 @@ export function AppProvider({ children }) {
   }, [activePatient]);
 
   const login = useCallback((user) => {
-    /**
-     * ┌───────────────────────────────────────────┐
-     * │  BACKEND: POST /api/auth/login            │
-     * │  Body: { name, role }                     │
-     * │  Response: { token, user }                │
-     * │  Replace setCurrentUser with API call.    │
-     * └───────────────────────────────────────────┘
-     */
     setCurrentUser(user);
     // Auto-select patient if logging in as patient
     if (user.role === 'patient') {
-      const liveDir = fetchPatientsFromStorage();
-      const patientProfile = liveDir.find(p => p.id === user.targetPatientId) || liveDir[0];
-      setActivePatient(patientProfile);
+      // Try backend first, fall back to localStorage
+      axios.get('/patients/')
+        .then(({ data }) => {
+          const mapped = (data || []).map(mapBackendPatient);
+          const patientProfile = mapped.find(p => p.id === user.targetPatientId) || mapped[0];
+          if (patientProfile) setActivePatient(patientProfile);
+        })
+        .catch(() => {
+          const liveDir = fetchPatientsFromStorage();
+          const patientProfile = liveDir.find(p => p.id === user.targetPatientId) || liveDir[0];
+          setActivePatient(patientProfile);
+        });
     } else {
       setActivePatient(null);
     }
@@ -116,20 +120,22 @@ export function AppProvider({ children }) {
     localStorage.removeItem('dc_perioData');
   }, []);
 
-  const selectPatient = useCallback((patientId) => {
-    /**
-     * ┌───────────────────────────────────────────┐
-     * │  BACKEND: GET /api/patients/:id           │
-     * │  Replace with fetch() to load full        │
-     * │  patient profile from database.           │
-     * └───────────────────────────────────────────┘
-     */
-    // Use live data from patientService so newly added patients are selectable
-    const liveDirectory = fetchPatientsFromStorage();
-    const patient = liveDirectory.find(p => p.id === patientId);
-    if (patient) {
-      setActivePatient(patient);
+  const selectPatient = useCallback(async (patientId) => {
+    // Fetch full patient profile from backend
+    try {
+      const { data } = await axios.get(`/patients/${patientId}`);
+      const mapped = mapBackendPatient(data);
+      setActivePatient(mapped);
       setCurrentUser(prev => prev ? { ...prev, targetPatientId: patientId } : prev);
+    } catch (err) {
+      console.error('Failed to fetch patient from backend, falling back to localStorage:', err);
+      // Fallback to localStorage
+      const liveDirectory = fetchPatientsFromStorage();
+      const patient = liveDirectory.find(p => p.id === patientId);
+      if (patient) {
+        setActivePatient(patient);
+        setCurrentUser(prev => prev ? { ...prev, targetPatientId: patientId } : prev);
+      }
     }
   }, []);
 

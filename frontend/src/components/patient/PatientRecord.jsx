@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRole } from '../../context/RoleContext';
-import {
-  fetchPatientsFromStorage,
-  savePatientsToStorage,
-  updatePatientInStorage,
-} from '../../services/patientService';
+import axios from 'axios';
 import {
   Users,
   Search,
@@ -22,16 +18,29 @@ import {
 /**
  * PatientRecord — Patient profile table with expandable detail cards.
  *
- * Now reads from the shared patientService (localStorage-backed),
- * ensuring data stays in sync with PatientsView and AddPatientForm.
- *
- * ┌─────────────────────────────────────────────┐
- * │  BACKEND: GET /api/patients/:id/records     │
- * │  The patientService functions are drop-in   │
- * │  replaceable with Axios calls. No changes   │
- * │  needed in this file.                       │
- * └─────────────────────────────────────────────┘
+ * Reads patient data from the FastAPI backend (GET /patients/).
  */
+
+/** Map backend patient (snake_case) to frontend-compatible shape. */
+function mapBackendPatient(p) {
+  return {
+    ...p,
+    displayId: p.patient_id,
+    fullName: p.name,
+    lastVisit: p.last_visit || null,
+    nextAppointment: p.next_visit || null,
+    concerns: p.treatment_status || 'General',
+    initials: p.name
+      ? p.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+      : '?',
+    phone: p.phone || '—',
+    email: p.email || '—',
+    insuranceProvider: p.insuranceProvider || '—',
+    bloodGroup: p.bloodGroup || '—',
+    allergies: p.allergies || [],
+    treatments: p.treatments || [],
+  };
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
@@ -48,14 +57,16 @@ function formatDate(dateStr) {
 
 export default function PatientRecord({ compact = false, patientId = null }) {
   const { userRole } = useRole();
-  const [patients, setPatients] = useState(() => fetchPatientsFromStorage());
+  const [patients, setPatients] = useState([]);
   const [expandedId, setExpandedId] = useState(patientId || null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Persist patients array via shared service
+  // Fetch patients from backend on mount
   useEffect(() => {
-    savePatientsToStorage(patients);
-  }, [patients]);
+    axios.get('/patients/')
+      .then(({ data }) => setPatients((data || []).map(mapBackendPatient)))
+      .catch((err) => console.error('PatientRecord fetch error:', err));
+  }, []);
 
   // Expand selected patient by default when parent updates prop
   useEffect(() => {
@@ -70,9 +81,9 @@ export default function PatientRecord({ compact = false, patientId = null }) {
     : patients;
 
   const filtered = displayPatients.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.concerns.toLowerCase().includes(searchQuery.toLowerCase())
+    (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    String(p.id).toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.concerns || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAddAllergy = (id, newAllergy) => {

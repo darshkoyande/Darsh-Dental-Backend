@@ -198,8 +198,8 @@ export default function PatientProfilesTable({ patients: propPatients = [], onRe
     return patients.filter(
       (p) =>
         (p.fullName || p.name || '').toLowerCase().includes(q) ||
-        (p.id || '').toLowerCase().includes(q) ||
-        (p.concerns || '').toLowerCase().includes(q) ||
+        String(p.patient_id || p.id || '').toLowerCase().includes(q) ||
+        (p.concerns || p.treatment_status || '').toLowerCase().includes(q) ||
         (p.clinicalNotes || '').toLowerCase().includes(q)
     );
   }, [patients, searchQuery]);
@@ -474,7 +474,7 @@ function PatientRow({
                   <span className="badge badge-blue text-[8px] py-0 px-1">{patient.rollNo}</span>
                 )}
               </p>
-              <p className="text-[10px] text-slate-400 font-mono">{patient.id}</p>
+              <p className="text-[10px] text-slate-400 font-mono">{patient.patient_id || patient.id}</p>
             </div>
           </div>
         </td>
@@ -484,7 +484,7 @@ function PatientRow({
 
         {/* ── Last Visit ──────────────────────────── */}
         <td className="px-4 py-3.5 text-slate-600 hidden md:table-cell">
-          {formatDate(patient.lastVisit || patient.createdAt)}
+          {formatDate(patient.lastVisit || patient.last_visit || patient.createdAt || patient.created_at)}
         </td>
 
         {/* ── Key Concerns + Priority Badge ──────── */}
@@ -494,13 +494,13 @@ function PatientRow({
                         ${priority.classes}`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${priority.dot} animate-pulse-soft`} />
-            {patient.concerns || 'General'}
+            {patient.concerns || patient.treatment_status || 'General'}
           </span>
         </td>
 
         {/* ── Next Appointment ───────────────────── */}
         <td className="px-4 py-3.5 text-slate-600 hidden lg:table-cell">
-          {patient.nextAppointment ? formatDate(patient.nextAppointment) : '—'}
+          {(patient.nextAppointment || patient.next_visit) ? formatDate(patient.nextAppointment || patient.next_visit) : '—'}
         </td>
 
         {/* ── Quick Actions + Expand ─────────────── */}
@@ -541,8 +541,7 @@ function PatientRow({
                 <History className="w-3.5 h-3.5" />
               </button>
 
-              {/* Remove (non-seed only) */}
-              {onRemove && !['DC-2001', 'DC-2002', 'DC-2003'].includes(patient.id) && (
+              {onRemove && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
