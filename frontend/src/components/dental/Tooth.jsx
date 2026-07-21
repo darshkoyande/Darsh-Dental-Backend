@@ -5,9 +5,11 @@ import { Check, AlertTriangle, X, Wrench } from 'lucide-react';
  * Tooth — Individual reusable interactive tooth element.
  * 
  * Props:
- *   toothNumber  (number)   — Universal tooth number (1-32)
+ *   toothNumber  (number)   — FDI tooth number (11-48 permanent, 51-85 primary)
+ *   label        (string)   — Display label: 'A'-'T' for primary, FDI number for others
  *   location     (string)   — 'Upper' or 'Lower'
  *   status       (string)   — 'Healthy' | 'Cavity' | 'Missing' | 'Treated'
+ *   isPrimary    (boolean)  — True for deciduous (baby) teeth; renders smaller SVG
  *   onStatusChange (func)   — Callback: (toothNumber, newStatus) => void
  *   onToothClick   (func)   — Callback: (toothNumber) => void — Opens detail panel
  *   readOnly     (boolean)  — If true, disables status editing (patient view)
@@ -57,24 +59,34 @@ const STATUS_CONFIG = {
 };
 
 /* ── Tooth SVG Paths ─────────────────────────── */
-// Front teeth (incisors/canines): teeth 6-11 upper, 22-27 lower
-function isAnterior(num) {
-  return (num >= 6 && num <= 11) || (num >= 22 && num <= 27);
+/**
+ * Determine if tooth is an anterior (incisor/canine) shape.
+ * Works for both FDI permanent (11-48) and primary (51-85) notation.
+ */
+function isAnterior(fdi, isPrimary) {
+  const rem = fdi % 10;
+  // Anterior teeth are positions 1, 2, 3 in any FDI quadrant (e.g. 11,12,13 / 51,52,53)
+  return rem >= 1 && rem <= 3;
 }
 
-function ToothSVG({ fill, stroke, isMissing, anterior }) {
+function ToothSVG({ fill, stroke, isMissing, anterior, isPrimary }) {
   const opacity = isMissing ? 0.35 : 1;
   const dashArray = isMissing ? '3 2' : 'none';
 
+  // Primary (baby) teeth are scaled down — slightly smaller & rounder
+  const scale = isPrimary ? 0.82 : 1;
+
   if (anterior) {
     // Incisor / Canine shape — narrower, tapered
+    const w = Math.round(36 * scale);
+    const h = Math.round(48 * scale);
     return (
-      <svg width="36" height="48" viewBox="0 0 36 48" style={{ opacity }}>
+      <svg width={w} height={h} viewBox="0 0 36 48" style={{ opacity }}>
         <path
           d="M10 4 C10 2, 14 0, 18 0 C22 0, 26 2, 26 4 L28 16 C29 22, 28 30, 26 36 C24 42, 22 46, 18 48 C14 46, 12 42, 10 36 C8 30, 7 22, 8 16 Z"
           fill={fill}
           stroke={stroke}
-          strokeWidth="1.8"
+          strokeWidth={isPrimary ? '2.2' : '1.8'}
           strokeDasharray={dashArray}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -93,13 +105,15 @@ function ToothSVG({ fill, stroke, isMissing, anterior }) {
   }
 
   // Molar / Premolar shape — wider, flat crown
+  const w = Math.round(40 * scale);
+  const h = Math.round(48 * scale);
   return (
-    <svg width="40" height="48" viewBox="0 0 40 48" style={{ opacity }}>
+    <svg width={w} height={h} viewBox="0 0 40 48" style={{ opacity }}>
       <path
         d="M8 6 C6 2, 12 0, 16 0 L24 0 C28 0, 34 2, 32 6 L34 14 C35 18, 36 24, 34 30 C32 36, 28 42, 24 46 C22 48, 18 48, 16 46 C12 42, 8 36, 6 30 C4 24, 5 18, 6 14 Z"
         fill={fill}
         stroke={stroke}
-        strokeWidth="1.8"
+        strokeWidth={isPrimary ? '2.2' : '1.8'}
         strokeDasharray={dashArray}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -126,11 +140,13 @@ function ToothSVG({ fill, stroke, isMissing, anterior }) {
   );
 }
 
-export default function Tooth({ toothNumber, location, status = 'Healthy', onStatusChange, onToothClick, readOnly = false }) {
+export default function Tooth({ toothNumber, label, location, status = 'Healthy', isPrimary = false, onStatusChange, onToothClick, readOnly = false }) {
   const [showPopover, setShowPopover] = useState(false);
   const popoverRef = useRef(null);
-  const config = STATUS_CONFIG[status];
-  const anterior = isAnterior(toothNumber);
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG['Healthy'];
+  // Use provided label, fall back to tooth number
+  const displayLabel = label ?? String(toothNumber);
+  const anterior = isAnterior(toothNumber, isPrimary);
 
   // Close popover on outside click
   useEffect(() => {
@@ -168,8 +184,8 @@ export default function Tooth({ toothNumber, location, status = 'Healthy', onSta
     <div className={`tooth-container flex flex-col items-center ${showPopover ? 'z-[100]' : ''}`} ref={popoverRef}>
       {/* Tooth Number Label (top for upper, bottom for lower) */}
       {location === 'Upper' && (
-        <span className={`text-[10px] font-bold mb-1 ${config.text}`}>
-          {toothNumber}
+        <span className={`text-[10px] font-bold mb-1 ${config.text} ${isPrimary ? 'italic' : ''}`}>
+          {displayLabel}
         </span>
       )}
 
@@ -182,13 +198,14 @@ export default function Tooth({ toothNumber, location, status = 'Healthy', onSta
                     ${config.border} ${config.bg} ${config.glow}
                     ${readOnly ? 'cursor-pointer' : 'cursor-pointer active:scale-95'}
                     ${showPopover ? 'ring-2 ring-dental-300 ring-offset-1' : ''}`}
-        title={`Tooth #${toothNumber} — ${config.label} (${location} Arch) · Click for details${!readOnly ? ' · Right-click to change status' : ''}`}
+        title={`Tooth ${displayLabel}${isPrimary ? ' (primary)' : ''} — ${config.label} (${location} Arch) · Click for details${!readOnly ? ' · Right-click to change status' : ''}`}
       >
         <ToothSVG
           fill={config.fill}
           stroke={config.stroke}
           isMissing={status === 'Missing'}
           anterior={anterior}
+          isPrimary={isPrimary}
         />
 
         {/* Status indicator dot */}
@@ -201,8 +218,8 @@ export default function Tooth({ toothNumber, location, status = 'Healthy', onSta
 
       {/* Tooth Number Label (bottom for lower) */}
       {location === 'Lower' && (
-        <span className={`text-[10px] font-bold mt-1 ${config.text}`}>
-          {toothNumber}
+        <span className={`text-[10px] font-bold mt-1 ${config.text} ${isPrimary ? 'italic' : ''}`}>
+          {displayLabel}
         </span>
       )}
 

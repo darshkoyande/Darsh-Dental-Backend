@@ -3,87 +3,79 @@ import { ClipboardList, Trash2, Clock, ArrowDown } from 'lucide-react';
 import Tooth from './Tooth';
 import ToothDetailPanel from './ToothDetailPanel';
 import { useRole } from '../../context/RoleContext';
+import {
+  resolveDentitionType,
+  getTeethForDentition,
+  buildInitialTeethStatus,
+  DentitionType,
+} from '../../utils/dentition';
 
 /**
- * ChartingGrid — Complete 32-tooth adult dental map with Clinical Audit Log.
- * Includes a detailed Side Panel triggered on tooth click.
- * State persists to localStorage across browser refreshes.
+ * ChartingGrid — Age-aware interactive dental chart with Clinical Audit Log.
+ *
+ * Automatically selects the correct dentition type based on the active
+ * patient's age:
+ *   PRIMARY   (< 6 yrs)  — 20 deciduous teeth, labeled A–T (italic)
+ *   MIXED     (6–11 yrs) — 28 teeth: 20 primary + 8 early permanent
+ *   PERMANENT (≥ 12 yrs) — 32 full adult teeth (FDI 11–48)
+ *
+ * State persists to localStorage per patient (keyed by patientId + dentition).
  *
  * Props:
  *   readOnly (boolean) — If true, teeth cannot be edited (patient view).
  */
 
-const UPPER_TEETH = Array.from({ length: 16 }, (_, i) => i + 1);   // 1–16
-const LOWER_TEETH = Array.from({ length: 16 }, (_, i) => i + 17);  // 17–32
-
-/**
- * F4: Wisdom tooth positions in 1-based sequential numbering:
- *   Upper arch → position 1 (FDI 18) and position 16 (FDI 28)
- *   Lower arch → position 17 (FDI 48) and position 32 (FDI 38)
- * When isPediatric, these positions are hidden from both arches.
- */
-const WISDOM_TEETH_POSITIONS = new Set([1, 16, 17, 32]);
-
-function getInitialTeethStatus(patientId) {
+const getInitialTeethStatus = (patientId, teethData) => {
   try {
     const stored = localStorage.getItem(`dc_teethStatus_${patientId}`);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Validate keys match the current dentition (e.g., don't use adult keys for a child)
+      const expectedKeys = [
+        ...teethData.upper.map(t => t.fdi),
+        ...teethData.lower.map(t => t.fdi),
+      ];
+      const storedKeys = Object.keys(parsed).map(Number);
+      const isCompatible = expectedKeys.every(k => storedKeys.includes(k));
+      if (isCompatible) return parsed;
+    }
   } catch { /* fallthrough */ }
 
-  const status = {};
-  for (let i = 1; i <= 32; i++) {
-    status[i] = 'Healthy';
-  }
-  
-  // Normalize patientId to check both string/numeric variants
-  const pid = String(patientId);
-  if (pid === 'DC-2001' || pid === '1') {
-    status[14] = 'Cavity';
-  } else if (pid === 'DC-2002' || pid === '2') {
-    status[3]  = 'Treated';
-    status[19] = 'Missing';
-  } else if (pid === 'DC-2003' || pid === '3') {
-    status[32] = 'Cavity'; // Wisdom tooth
-  }
-  return status;
-}
-
-const getInitialAuditLog = (pId) => {
-  const pid = String(pId);
-  return [
-    {
-      tooth: (pid === 'DC-2002' || pid === '2') ? 3 : 14,
-      status: 'Treated',
-      timestamp: new Date(Date.now() - 86400000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      date: new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    },
-  ];
+  return buildInitialTeethStatus(teethData);
 };
+
+const getInitialAuditLog = () => [];
 
 export default function ChartingGrid({ readOnly = false }) {
   const { activePatient } = useRole();
   const patientId = activePatient?.id || 'default';
 
-  // F4: Pediatric view — patients aged 16 or younger see 28 teeth (no wisdom teeth)
-  const isPediatric = activePatient?.age != null && activePatient.age <= 16;
-  const displayUpper = isPediatric
-    ? UPPER_TEETH.filter((n) => !WISDOM_TEETH_POSITIONS.has(n))
-    : UPPER_TEETH;
-  const displayLower = isPediatric
-    ? LOWER_TEETH.filter((n) => !WISDOM_TEETH_POSITIONS.has(n))
-    : LOWER_TEETH;
+  // ── Resolve dentition type from patient age ──────────────────────────────
+  const dentitionType = resolveDentitionType(activePatient?.age);
+  const teethData     = getTeethForDentition(dentitionType);
+  const isPediatric   = dentitionType !== DentitionType.PERMANENT;
 
-  const [teethStatus, setTeethStatus] = useState(() => getInitialTeethStatus(patientId));
-  const [auditLog, setAuditLog] = useState(() => getInitialAuditLog(patientId));
+  // Badge appearance per dentition type
+  const dentitionBadge = {
+    [DentitionType.PRIMARY]:   { text: `Primary Dentition · ${teethData.totalCount} baby teeth`, color: 'bg-pink-100 border-pink-200 text-pink-700' },
+    [DentitionType.MIXED]:     { text: `Mixed Dentition · ${teethData.totalCount} teeth`,        color: 'bg-violet-100 border-violet-200 text-violet-700' },
+    [DentitionType.PERMANENT]: { text: `Permanent Dentition · ${teethData.totalCount} teeth`,    color: 'bg-emerald-100 border-emerald-200 text-emerald-700' },
+  }[dentitionType];
+
+  const [teethStatus, setTeethStatus] = useState(() =>
+    getInitialTeethStatus(patientId, teethData)
+  );
+  const [auditLog, setAuditLog]         = useState(getInitialAuditLog);
   const [selectedTooth, setSelectedTooth] = useState(null);
   const auditEndRef = useRef(null);
 
-  // Sync state when active patient changes
+  // Sync state when active patient changes (including dentition type change)
   useEffect(() => {
-    setTeethStatus(getInitialTeethStatus(patientId));
-    setAuditLog(getInitialAuditLog(patientId));
+    const freshTeethData = getTeethForDentition(resolveDentitionType(activePatient?.age));
+    setTeethStatus(getInitialTeethStatus(patientId, freshTeethData));
+    setAuditLog([]);
     setSelectedTooth(null);
-  }, [patientId]);
+  }, [patientId, activePatient?.age]);
 
   // Persist teeth status to localStorage keyed by patientId
   useEffect(() => {
@@ -97,31 +89,26 @@ export default function ChartingGrid({ readOnly = false }) {
     auditEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [auditLog]);
 
-  const handleStatusChange = useCallback((toothNumber, newStatus) => {
-    setTeethStatus((prev) => ({
-      ...prev,
-      [toothNumber]: newStatus,
-    }));
+  const handleStatusChange = useCallback((toothFdi, newStatus) => {
+    setTeethStatus(prev => ({ ...prev, [toothFdi]: newStatus }));
 
     const now = new Date();
-    setAuditLog((prev) => [
+    setAuditLog(prev => [
       ...prev,
       {
-        tooth: toothNumber,
-        status: newStatus,
+        tooth:     toothFdi,
+        status:    newStatus,
         timestamp: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        date:      now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       },
     ]);
   }, []);
 
-  const handleToothClick = useCallback((toothNumber) => {
-    setSelectedTooth(toothNumber);
+  const handleToothClick = useCallback((toothFdi) => {
+    setSelectedTooth(toothFdi);
   }, []);
 
-  function clearAuditLog() {
-    setAuditLog([]);
-  }
+  function clearAuditLog() { setAuditLog([]); }
 
   const statusColor = {
     Healthy: 'border-emerald-300 text-emerald-600',
@@ -139,6 +126,10 @@ export default function ChartingGrid({ readOnly = false }) {
     ? `Active Charting Center for: ${activePatient.name}`
     : 'Interactive Dental Chart';
 
+  // Helper: find the label for a given FDI tooth number (for audit log)
+  const allSlots = [...teethData.upper, ...teethData.lower];
+  const getLabelForFdi = (fdi) => allSlots.find(s => s.fdi === fdi)?.label ?? String(fdi);
+
   return (
     <>
       <div className="flex flex-col lg:flex-row gap-4">
@@ -150,20 +141,17 @@ export default function ChartingGrid({ readOnly = false }) {
                 <ClipboardList className="w-5 h-5 text-dental-500" />
                 {chartTitle}
               </h2>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <p className="text-xs text-slate-400">
                   {readOnly
                     ? 'Read-only view of your dental health'
                     : 'Click any tooth to view details · Right-click to update status'}
                 </p>
-                {/* F4: Pediatric badge */}
-                {isPediatric && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
-                                   bg-violet-100 border border-violet-200 text-violet-700
-                                   text-[10px] font-semibold">
-                    Pediatric View (28 teeth)
-                  </span>
-                )}
+                {/* Dentition type badge */}
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                                   border text-[10px] font-semibold ${dentitionBadge.color}`}>
+                  {dentitionBadge.text}
+                </span>
               </div>
             </div>
 
@@ -187,6 +175,26 @@ export default function ChartingGrid({ readOnly = false }) {
             </div>
           </div>
 
+          {/* Primary dentition info banner */}
+          {dentitionType === DentitionType.PRIMARY && (
+            <div className="mb-4 p-3 rounded-xl bg-pink-50 border border-pink-100 flex items-center gap-2">
+              <span className="text-lg">🍼</span>
+              <p className="text-xs text-pink-700 font-medium">
+                Primary (deciduous) dentition — Teeth labeled <strong>A through T</strong>.
+                Letters shown in <em>italic</em>. Molars are teeth D, E, I, J (upper) and O, N, S, T (lower).
+              </p>
+            </div>
+          )}
+
+          {dentitionType === DentitionType.MIXED && (
+            <div className="mb-4 p-3 rounded-xl bg-violet-50 border border-violet-100 flex items-center gap-2">
+              <span className="text-lg">🦷</span>
+              <p className="text-xs text-violet-700 font-medium">
+                Mixed dentition — Primary teeth <em>(italic, A–T)</em> coexist with early permanent teeth (first molars &amp; central incisors in FDI notation).
+              </p>
+            </div>
+          )}
+
           {/* ── Upper Arch ─────────────────────── */}
           <div className="mb-2">
             <div className="flex items-center gap-2 mb-3">
@@ -196,12 +204,14 @@ export default function ChartingGrid({ readOnly = false }) {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
             <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
-              {displayUpper.map((num) => (
+              {teethData.upper.map((slot) => (
                 <Tooth
-                  key={num}
-                  toothNumber={num}
+                  key={slot.fdi}
+                  toothNumber={slot.fdi}
+                  label={slot.label}
                   location="Upper"
-                  status={teethStatus[num]}
+                  status={teethStatus[slot.fdi] || 'Healthy'}
+                  isPrimary={slot.isPrimary}
                   onStatusChange={handleStatusChange}
                   onToothClick={handleToothClick}
                   readOnly={readOnly}
@@ -228,12 +238,14 @@ export default function ChartingGrid({ readOnly = false }) {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
             <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
-              {displayLower.map((num) => (
+              {teethData.lower.map((slot) => (
                 <Tooth
-                  key={num}
-                  toothNumber={num}
+                  key={slot.fdi}
+                  toothNumber={slot.fdi}
+                  label={slot.label}
                   location="Lower"
-                  status={teethStatus[num]}
+                  status={teethStatus[slot.fdi] || 'Healthy'}
+                  isPrimary={slot.isPrimary}
                   onStatusChange={handleStatusChange}
                   onToothClick={handleToothClick}
                   readOnly={readOnly}
@@ -277,7 +289,7 @@ export default function ChartingGrid({ readOnly = false }) {
                   >
                     <div className="flex-1">
                       <p className="font-semibold text-slate-700">
-                        Tooth #{entry.tooth}
+                        Tooth {getLabelForFdi(entry.tooth)}
                         <span className={`ml-1.5 ${
                           entry.status === 'Healthy' ? 'text-emerald-600' :
                           entry.status === 'Cavity'  ? 'text-amber-600' :
@@ -311,6 +323,7 @@ export default function ChartingGrid({ readOnly = false }) {
       {selectedTooth !== null && (
         <ToothDetailPanel
           toothNumber={selectedTooth}
+          label={getLabelForFdi(selectedTooth)}
           status={teethStatus[selectedTooth]}
           onClose={() => setSelectedTooth(null)}
         />

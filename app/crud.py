@@ -292,3 +292,148 @@ def delete_clinical_report(db: Session, report_id: int):
         db.delete(db_report)
         db.commit()
     return db_report
+
+
+# ── Dentition Tracking CRUD ───────────────────────────────────────────────────
+
+from app.dentition import (
+    DentitionType,
+    NotationSystem,
+    ToothStatus,
+    get_default_chart_teeth,
+    get_default_status_for_notation,
+    resolve_dentition_type,
+    PRIMARY_FDI_TEETH,
+    PERMANENT_FDI_TEETH,
+)
+
+
+def get_patient_tooth_chart(db: Session, patient_id: int) -> list:
+    """
+    Return all PatientToothRecord rows for a patient, ordered by notation
+    system and then tooth identifier for deterministic display.
+    """
+    return (
+        db.query(models.PatientToothRecord)
+        .filter(models.PatientToothRecord.patient_id == patient_id)
+        .order_by(
+            models.PatientToothRecord.notation_system,
+            models.PatientToothRecord.tooth_identifier,
+        )
+        .all()
+    )
+
+
+def initialize_dentition_chart(
+    db: Session, patient_id: int, dentition_type: DentitionType
+) -> list:
+    """
+    Bulk-insert a clean dentition chart for a patient based on their
+    dentition type.  Each tooth slot gets the default status for its
+    notation system (PRIMARY for deciduous, PRESENT for permanent).
+
+    Existing records for this patient are deleted first so the chart
+    always starts from a deterministic baseline.
+    """
+    # Clear any stale chart for this patient
+    db.query(models.PatientToothRecord).filter(
+        models.PatientToothRecord.patient_id == patient_id
+    ).delete()
+    db.commit()
+
+    teeth_to_create = get_default_chart_teeth(dentition_type)
+    new_records = []
+
+    for fdi_int in teeth_to_create:
+        if fdi_int in PRIMARY_FDI_TEETH:
+            notation = NotationSystem.FDI_PRIMARY
+        else:
+            notation = NotationSystem.FDI_PERMANENT
+
+        default_status = get_default_status_for_notation(notation)
+
+        record = models.PatientToothRecord(
+            patient_id=patient_id,
+            tooth_identifier=str(fdi_int),
+            notation_system=notation.value,
+            status=default_status.value,
+        )
+        db.add(record)
+        new_records.append(record)
+
+    db.commit()
+    for r in new_records:
+        db.refresh(r)
+    return new_records
+
+
+def upsert_tooth_record(
+    db: Session,
+    patient_id: int,
+    tooth_identifier: str,
+    notation_system: NotationSystem,
+    status: ToothStatus,
+    surfaces: str | None = None,
+    notes: str | None = None,
+) -> models.PatientToothRecord:
+    """
+    Insert-or-update a single PatientToothRecord for a patient.
+    The natural key is (patient_id, tooth_identifier, notation_system).
+    """
+    from datetime import datetime, timezone
+
+    existing = (
+        db.query(models.PatientToothRecord)
+        .filter(
+            models.PatientToothRecord.patient_id == patient_id,
+            models.PatientToothRecord.tooth_identifier == tooth_identifier,
+            models.PatientToothRecord.notation_system == notation_system.value,
+        )
+        .first()
+    )
+
+    if existing:
+        existing.status = status.value
+        if surfaces is not None:
+            existing.surfaces = surfaces
+        if notes is not None:
+            existing.notes = notes
+        existing.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    else:
+        new_record = models.PatientToothRecord(
+            patient_id=patient_id,
+            tooth_identifier=tooth_identifier,
+            notation_system=notation_system.value,
+            status=status.value,
+            surfaces=surfaces,
+            notes=notes,
+        )
+        db.add(new_record)
+        db.commit()
+        db.refresh(new_record)
+        return new_record
+
+
+def upsert_tooth_records_batch(
+    db: Session, patient_id: int, updates: list
+) -> list:
+    """
+    Apply a batch of ToothStatusUpdateItem objects to a patient's chart.
+    Returns the list of updated/created PatientToothRecord instances.
+    """
+    results = []
+    for item in updates:
+        record = upsert_tooth_record(
+            db=db,
+            patient_id=patient_id,
+            tooth_identifier=item.tooth_identifier,
+            notation_system=item.notation_system,
+            status=item.status,
+            surfaces=item.surfaces,
+            notes=item.notes,
+        )
+        results.append(record)
+    return results

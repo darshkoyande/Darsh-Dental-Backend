@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, T
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database import Base
+from app.dentition import ToothStatus, NotationSystem
 
 
 class User(Base):
@@ -51,6 +52,7 @@ class Patient(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     charts = relationship("PerioChart", back_populates="patient", cascade="all, delete-orphan")
+    tooth_records = relationship("PatientToothRecord", back_populates="patient", cascade="all, delete-orphan")
 
 class PerioChart(Base):
     __tablename__ = "perio_charts"
@@ -183,3 +185,48 @@ class AuditLog(Base):
     user = Column(String, default="Dr. Priya Sharma")
     client_ip = Column(String, nullable=True)
     details = Column(Text, nullable=True)
+
+
+class PatientToothRecord(Base):
+    """
+    Tracks the dentition status of every tooth slot for a patient.
+
+    Supports three notation systems:
+      - FDI_PERMANENT   : integer identifiers 11-48 (permanent adult teeth)
+      - FDI_PRIMARY     : integer identifiers 51-85 (primary deciduous teeth)
+      - UNIVERSAL_PRIMARY: letter identifiers A-T  (primary deciduous teeth)
+
+    One record per tooth slot per patient. Upsert logic in crud.py ensures
+    there are no duplicate (patient_id, tooth_identifier, notation_system) rows.
+    """
+    __tablename__ = "patient_tooth_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+
+    # Tooth identifier as a string to accommodate both numeric FDI ("18") and
+    # letter-based Universal notation ("A").
+    tooth_identifier = Column(String, nullable=False)
+
+    # Which notation system this identifier belongs to.
+    notation_system = Column(String, nullable=False)  # NotationSystem enum value
+
+    # Clinical status — stored as the string value of ToothStatus.
+    status = Column(String, nullable=False, default=ToothStatus.PRESENT.value)
+
+    # JSON-encoded surface conditions, e.g.
+    # {"buccal": "caries", "occlusal": "filling", "mesial": "intact"}
+    # Kept as free-form text for maximum flexibility.
+    surfaces = Column(Text, nullable=True)
+
+    # Optional clinical note specific to this tooth slot.
+    notes = Column(Text, nullable=True)
+
+    recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    patient = relationship("Patient", back_populates="tooth_records")

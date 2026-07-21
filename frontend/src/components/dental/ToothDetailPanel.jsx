@@ -172,7 +172,9 @@ function DummyRadiograph({ type }) {
   );
 }
 
-export default function ToothDetailPanel({ toothNumber, status, onClose }) {
+export default function ToothDetailPanel({ toothNumber, label, status, onClose }) {
+  // Display label falls back to the FDI tooth number if no label provided
+  const displayLabel = label ?? `#${toothNumber}`;
   const clinicalData = TOOTH_CLINICAL_DATA[toothNumber] || getDefaultData(toothNumber, status);
   const [activeTab, setActiveTab] = useState('history');
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -223,7 +225,7 @@ export default function ToothDetailPanel({ toothNumber, status, onClose }) {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Stethoscope className="w-5 h-5" />
-              Tooth #{toothNumber}
+              Tooth {displayLabel}
             </h2>
             <button
               onClick={onClose}
@@ -476,7 +478,7 @@ export default function ToothDetailPanel({ toothNumber, status, onClose }) {
         <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-slate-400">
-              Tooth #{toothNumber} · {clinicalData.history.length} treatment{clinicalData.history.length !== 1 ? 's' : ''} · {totalAttachments} file{totalAttachments !== 1 ? 's' : ''}
+              Tooth {displayLabel} · {clinicalData.history.length} treatment{clinicalData.history.length !== 1 ? 's' : ''} · {totalAttachments} file{totalAttachments !== 1 ? 's' : ''}
             </p>
             <button
               onClick={onClose}

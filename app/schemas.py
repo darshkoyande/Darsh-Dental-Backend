@@ -255,3 +255,125 @@ class ChatMessageResponse(BaseModel):
 class UnreadCountResponse(BaseModel):
     user_id: int
     unread_count: int
+
+
+# ── Dentition Tracking Schemas ────────────────────────────────────────────────
+# These schemas power the /api/v1/patients/{id}/chart endpoints.
+# They are independent of the existing PerioChart/ToothData perio system.
+
+from app.dentition import (
+    ToothStatus,
+    DentitionType,
+    NotationSystem,
+    PERMANENT_FDI_TEETH,
+    PRIMARY_FDI_TEETH,
+    PRIMARY_UNIVERSAL_TEETH,
+    PRIMARY_ONLY_STATUSES,
+    PRIMARY_NOTATION_SYSTEMS,
+)
+
+
+class ToothStatusUpdateItem(BaseModel):
+    """A single tooth status update as submitted by the client."""
+    tooth_identifier: str = Field(
+        ...,
+        description=(
+            "Tooth identifier: numeric string for FDI (e.g. '18', '51') "
+            "or letter for Universal primary notation (e.g. 'A')."
+        )
+    )
+    notation_system: NotationSystem = Field(
+        ...,
+        description="Notation system: FDI_PERMANENT, FDI_PRIMARY, or UNIVERSAL_PRIMARY"
+    )
+    status: ToothStatus = Field(..., description="New clinical status for this tooth")
+    surfaces: Optional[str] = Field(
+        default=None,
+        description="Free-form JSON string describing surface conditions"
+    )
+    notes: Optional[str] = Field(default=None, description="Optional clinical note")
+
+    @model_validator(mode="after")
+    def validate_identifier_and_status(self) -> "ToothStatusUpdateItem":
+        """
+        Cross-validate tooth_identifier against notation_system, and ensure
+        primary-only statuses are not applied to permanent tooth slots.
+        """
+        ns = self.notation_system
+        tid = self.tooth_identifier
+        st = self.status
+
+        if ns == NotationSystem.FDI_PERMANENT:
+            try:
+                fdi_int = int(tid)
+            except ValueError:
+                raise ValueError(
+                    f"FDI_PERMANENT tooth_identifier must be a numeric string, got '{tid}'."
+                )
+            if fdi_int not in PERMANENT_FDI_TEETH:
+                raise ValueError(
+                    f"'{tid}' is not a valid FDI permanent tooth number (11-48). "
+                    f"Got {fdi_int}."
+                )
+            if st in PRIMARY_ONLY_STATUSES:
+                raise ValueError(
+                    f"Status '{st.value}' is only valid for primary (deciduous) teeth. "
+                    f"Cannot assign it to permanent tooth '{tid}'."
+                )
+
+        elif ns == NotationSystem.FDI_PRIMARY:
+            try:
+                fdi_int = int(tid)
+            except ValueError:
+                raise ValueError(
+                    f"FDI_PRIMARY tooth_identifier must be a numeric string, got '{tid}'."
+                )
+            if fdi_int not in PRIMARY_FDI_TEETH:
+                raise ValueError(
+                    f"'{tid}' is not a valid FDI primary tooth number (51-85). "
+                    f"Got {fdi_int}."
+                )
+
+        elif ns == NotationSystem.UNIVERSAL_PRIMARY:
+            if tid.upper() not in PRIMARY_UNIVERSAL_TEETH:
+                raise ValueError(
+                    f"'{tid}' is not a valid Universal primary tooth identifier (A-T)."
+                )
+            # Normalise to uppercase
+            self.tooth_identifier = tid.upper()
+
+        return self
+
+
+class ToothStatusUpdateRequest(BaseModel):
+    """Request body for the batch tooth-status update endpoint."""
+    updates: List[ToothStatusUpdateItem] = Field(
+        ...,
+        min_length=1,
+        description="One or more tooth status updates to apply atomically."
+    )
+
+
+class PatientToothRecordResponse(BaseModel):
+    """Response shape for a single tooth record."""
+    id: int
+    patient_id: int
+    tooth_identifier: str
+    notation_system: NotationSystem
+    status: ToothStatus
+    surfaces: Optional[str]
+    notes: Optional[str]
+    recorded_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DentitionChartResponse(BaseModel):
+    """Full dentition chart response for a patient."""
+    patient_id: int
+    patient_name: str
+    age: int
+    dentition_type: DentitionType
+    total_teeth: int
+    teeth: List[PatientToothRecordResponse]

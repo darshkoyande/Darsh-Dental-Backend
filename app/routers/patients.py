@@ -21,7 +21,19 @@ def create_new_patient(patient: schemas.PatientCreate, db: Session = Depends(dat
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Patient ID already registered"
         )
-    return crud.create_patient(db=db, patient=patient)
+    new_patient = crud.create_patient(db=db, patient=patient)
+
+    # Automatically create a blank default perio chart for every new patient.
+    # All 32 FDI teeth are pre-populated with Normal status and zero measurements
+    # so the charting view always starts from a clean, deterministic baseline.
+    default_chart = schemas.PerioChartCreate(
+        status="In Plan",
+        notes="Initial periodontal chart created.",
+        teeth=None  # triggers the 32-tooth blank pre-population in crud.create_chart
+    )
+    crud.create_chart(db=db, patient_db_id=new_patient.id, chart_in=default_chart)
+
+    return new_patient
 
 @router.get("/{patient_id}", response_model=schemas.PatientResponse)
 def read_patient(patient_id: int, db: Session = Depends(database.get_db)):
