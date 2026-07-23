@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ClipboardList, Trash2, Clock, ArrowDown } from 'lucide-react';
+import { ClipboardList, Trash2, Clock, ArrowDown, Save, Loader2 } from 'lucide-react';
+import axios from 'axios';
 import Tooth from './Tooth';
 import ToothDetailPanel from './ToothDetailPanel';
 import { useRole } from '../../context/RoleContext';
@@ -69,20 +70,95 @@ export default function ChartingGrid({ readOnly = false }) {
   const [selectedTooth, setSelectedTooth] = useState(null);
   const auditEndRef = useRef(null);
 
-  // Sync state when active patient changes (including dentition type change)
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
+
+  // Load patient chart from backend database on active patient change
   useEffect(() => {
-    const freshTeethData = getTeethForDentition(resolveDentitionType(activePatient?.age));
-    setTeethStatus(getInitialTeethStatus(patientId, freshTeethData));
+    const fetchChartFromDatabase = async () => {
+      if (!activePatient || activePatient.id === 'default') return;
+      setIsLoading(true);
+      const freshTeethData = getTeethForDentition(resolveDentitionType(activePatient?.age));
+      try {
+        const { data } = await axios.get(`/api/v1/patients/${patientId}/chart`);
+        if (data && data.teeth && data.teeth.length > 0) {
+          const loadedStatus = {};
+          data.teeth.forEach(item => {
+            loadedStatus[Number(item.tooth_identifier)] = item.status;
+          });
+          setTeethStatus(loadedStatus);
+        } else {
+          setTeethStatus(getInitialTeethStatus(patientId, freshTeethData));
+        }
+      } catch (err) {
+        console.error('Failed to fetch dentition chart from server:', err);
+        setTeethStatus(getInitialTeethStatus(patientId, freshTeethData));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchChartFromDatabase();
     setAuditLog([]);
     setSelectedTooth(null);
-  }, [patientId, activePatient?.age]);
+  }, [patientId, activePatient]);
 
-  // Persist teeth status to localStorage keyed by patientId
+  // Sync teeth status to localStorage keyed by patientId as a backup
   useEffect(() => {
     try {
       localStorage.setItem(`dc_teethStatus_${patientId}`, JSON.stringify(teethStatus));
     } catch { /* ignore */ }
   }, [teethStatus, patientId]);
+
+  // Auto-clear save status badge after 3 seconds
+  useEffect(() => {
+    if (saveStatus) {
+      const timer = setTimeout(() => setSaveStatus(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [saveStatus]);
+
+  // Function to save the full chart back to the database
+  const saveChartToDatabase = async () => {
+    if (!activePatient || activePatient.id === 'default') return;
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      const allTeeth = [...teethData.upper, ...teethData.lower];
+      const updates = allTeeth.map(t => {
+        const toothId = String(t.fdi);
+        const status = teethStatus[t.fdi] || 'Healthy';
+        const notationSystem = t.isPrimary ? 'FDI_PRIMARY' : 'FDI_PERMANENT';
+        return {
+          tooth_identifier: toothId,
+          notation_system: notationSystem,
+          status: status,
+          surfaces: null,
+          notes: null
+        };
+      });
+
+      await axios.post(`/api/v1/patients/${patientId}/chart/teeth`, { updates });
+      setSaveStatus('success');
+      
+      const now = new Date();
+      setAuditLog(prev => [
+        ...prev,
+        {
+          system: true,
+          message: 'Chart successfully saved to database',
+          timestamp: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          date:      now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        }
+      ]);
+    } catch (err) {
+      console.error('Failed to save dentition chart:', err);
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Auto-scroll audit log
   useEffect(() => {
@@ -155,23 +231,59 @@ export default function ChartingGrid({ readOnly = false }) {
               </div>
             </div>
 
-            <div className="hidden md:flex items-center gap-3">
-              {['Healthy', 'Cavity', 'Missing', 'Treated'].map((s) => (
-                <span key={s} className={`badge ${
-                  s === 'Healthy' ? 'badge-emerald' :
-                  s === 'Cavity'  ? 'badge-amber' :
-                  s === 'Missing' ? 'bg-slate-100 text-slate-400' :
-                                    'badge-blue'
-                }`}>
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
-                    s === 'Healthy' ? 'bg-emerald-500' :
-                    s === 'Cavity'  ? 'bg-amber-500' :
-                    s === 'Missing' ? 'bg-slate-300' :
-                                      'bg-blue-500'
-                  }`} />
-                  {s} ({counts[s] || 0})
-                </span>
-              ))}
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="hidden md:flex items-center gap-3">
+                {['Healthy', 'Cavity', 'Missing', 'Treated'].map((s) => (
+                  <span key={s} className={`badge ${
+                    s === 'Healthy' ? 'badge-emerald' :
+                    s === 'Cavity'  ? 'badge-amber' :
+                    s === 'Missing' ? 'bg-slate-100 text-slate-400' :
+                                      'badge-blue'
+                  }`}>
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
+                      s === 'Healthy' ? 'bg-emerald-500' :
+                      s === 'Cavity'  ? 'bg-amber-500' :
+                      s === 'Missing' ? 'bg-slate-300' :
+                                        'bg-blue-500'
+                    }`} />
+                    {s} ({counts[s] || 0})
+                  </span>
+                ))}
+              </div>
+
+              {!readOnly && (
+                <div className="flex items-center gap-2">
+                  {saveStatus === 'success' && (
+                    <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-100 animate-fade-in shrink-0">
+                      ✓ Saved
+                    </span>
+                  )}
+                  {saveStatus === 'error' && (
+                    <span className="text-[11px] font-semibold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-xl border border-red-100 animate-fade-in shrink-0">
+                      ✗ Error saving
+                    </span>
+                  )}
+                  <button
+                    onClick={saveChartToDatabase}
+                    disabled={isSaving || isLoading}
+                    id="save-chart-btn"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-dental-500 text-white text-xs font-semibold
+                               hover:bg-dental-600 active:scale-95 transition-all duration-200 shadow-sm disabled:opacity-60 shrink-0"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        Save Chart
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -195,64 +307,73 @@ export default function ChartingGrid({ readOnly = false }) {
             </div>
           )}
 
-          {/* ── Upper Arch ─────────────────────── */}
-          <div className="mb-2">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Upper Arch (Maxillary)
-              </span>
-              <div className="flex-1 h-px bg-slate-200" />
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin text-dental-500 mb-2" />
+              <p className="text-sm font-medium">Loading patient chart...</p>
             </div>
-            <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
-              {teethData.upper.map((slot) => (
-                <Tooth
-                  key={slot.fdi}
-                  toothNumber={slot.fdi}
-                  label={slot.label}
-                  location="Upper"
-                  status={teethStatus[slot.fdi] || 'Healthy'}
-                  isPrimary={slot.isPrimary}
-                  onStatusChange={handleStatusChange}
-                  onToothClick={handleToothClick}
-                  readOnly={readOnly}
-                />
-              ))}
-            </div>
-          </div>
+          ) : (
+            <>
+              {/* ── Upper Arch ─────────────────────── */}
+              <div className="mb-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Upper Arch (Maxillary)
+                  </span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+                <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
+                  {teethData.upper.map((slot) => (
+                    <Tooth
+                      key={slot.fdi}
+                      toothNumber={slot.fdi}
+                      label={slot.label}
+                      location="Upper"
+                      status={teethStatus[slot.fdi] || 'Healthy'}
+                      isPrimary={slot.isPrimary}
+                      onStatusChange={handleStatusChange}
+                      onToothClick={handleToothClick}
+                      readOnly={readOnly}
+                    />
+                  ))}
+                </div>
+              </div>
 
-          {/* ── Dental Midline ─────────────────── */}
-          <div className="flex items-center gap-4 my-4">
-            <div className="flex-1 border-t-2 border-dashed border-dental-200" />
-            <span className="text-[10px] font-semibold text-dental-400 uppercase tracking-widest px-2">
-              Occlusal Plane
-            </span>
-            <div className="flex-1 border-t-2 border-dashed border-dental-200" />
-          </div>
+              {/* ── Dental Midline ─────────────────── */}
+              <div className="flex items-center gap-4 my-4">
+                <div className="flex-1 border-t-2 border-dashed border-dental-200" />
+                <span className="text-[10px] font-semibold text-dental-400 uppercase tracking-widest px-2">
+                  Occlusal Plane
+                </span>
+                <div className="flex-1 border-t-2 border-dashed border-dental-200" />
+              </div>
 
-          {/* ── Lower Arch ─────────────────────── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Lower Arch (Mandibular)
-              </span>
-              <div className="flex-1 h-px bg-slate-200" />
-            </div>
-            <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
-              {teethData.lower.map((slot) => (
-                <Tooth
-                  key={slot.fdi}
-                  toothNumber={slot.fdi}
-                  label={slot.label}
-                  location="Lower"
-                  status={teethStatus[slot.fdi] || 'Healthy'}
-                  isPrimary={slot.isPrimary}
-                  onStatusChange={handleStatusChange}
-                  onToothClick={handleToothClick}
-                  readOnly={readOnly}
-                />
-              ))}
-            </div>
-          </div>
+              {/* ── Lower Arch ─────────────────────── */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Lower Arch (Mandibular)
+                  </span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+                <div className="flex justify-center gap-1 sm:gap-1.5 flex-wrap">
+                  {teethData.lower.map((slot) => (
+                    <Tooth
+                      key={slot.fdi}
+                      toothNumber={slot.fdi}
+                      label={slot.label}
+                      location="Lower"
+                      status={teethStatus[slot.fdi] || 'Healthy'}
+                      isPrimary={slot.isPrimary}
+                      onStatusChange={handleStatusChange}
+                      onToothClick={handleToothClick}
+                      readOnly={readOnly}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* ── Clinical Audit Log (Side Pane) ──── */}
@@ -285,20 +406,24 @@ export default function ChartingGrid({ readOnly = false }) {
                 auditLog.map((entry, idx) => (
                   <div
                     key={idx}
-                    className={`audit-entry ${statusColor[entry.status]}`}
+                    className={`audit-entry ${entry.system ? 'border-blue-200 text-blue-600 bg-blue-50/50' : statusColor[entry.status]}`}
                   >
                     <div className="flex-1">
-                      <p className="font-semibold text-slate-700">
-                        Tooth {getLabelForFdi(entry.tooth)}
-                        <span className={`ml-1.5 ${
-                          entry.status === 'Healthy' ? 'text-emerald-600' :
-                          entry.status === 'Cavity'  ? 'text-amber-600' :
-                          entry.status === 'Missing' ? 'text-slate-400' :
-                                                       'text-blue-600'
-                        }`}>
-                          → {entry.status}
-                        </span>
-                      </p>
+                      {entry.system ? (
+                        <p className="font-semibold text-slate-700">{entry.message}</p>
+                      ) : (
+                        <p className="font-semibold text-slate-700">
+                          Tooth {getLabelForFdi(entry.tooth)}
+                          <span className={`ml-1.5 ${
+                            entry.status === 'Healthy' ? 'text-emerald-600' :
+                            entry.status === 'Cavity'  ? 'text-amber-600' :
+                            entry.status === 'Missing' ? 'text-slate-400' :
+                                                         'text-blue-600'
+                          }`}>
+                            → {entry.status}
+                          </span>
+                        </p>
+                      )}
                       <p className="text-slate-400 mt-0.5">
                         {entry.date} at {entry.timestamp}
                       </p>

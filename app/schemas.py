@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 # ── B4: FDI Wisdom Tooth Numbers ──────────────────────────────────────────────
 # When a pediatric patient submits, these teeth should auto-resolve to "Missing"
@@ -72,6 +72,16 @@ class PerioChartResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+# --- DIAGNOSIS RECORD SCHEMA ---
+class DiagnosisRecordResponse(BaseModel):
+    id: int
+    diagnosis: str
+    treatment: str
+    medicine: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- PATIENT SCHEMA ---
 class PatientBase(BaseModel):
     patient_id: str = Field(..., description="External patient ID, e.g. PT-04821")
@@ -84,6 +94,11 @@ class PatientBase(BaseModel):
     last_visit: Optional[str] = None
     next_visit: Optional[str] = None
     treatment_status: str = "In Plan"
+    # ── Clinical Diagnosis Fields ──────────────────────────────────
+    diagnosis: Optional[str] = Field(None, description="Selected diagnosis from dataset")
+    treatment: Optional[str] = Field(None, description="Auto-filled treatment for the diagnosis")
+    medicine: Optional[str] = Field(None, description="Auto-filled medicine for the diagnosis")
+    treatment_date: Optional[date] = Field(None, description="Date when treatment is done")
 
 class PatientCreate(PatientBase):
     patient_id: Optional[str] = Field(None, description="External patient ID, e.g. PT-04821. If not provided, will be auto-generated.")

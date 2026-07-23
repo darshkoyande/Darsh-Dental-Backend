@@ -245,3 +245,21 @@ export function updatePatientInStorage(patientId, updater) {
   savePatientsToStorage(updated);
   return updated;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+ *  fetchDiagnoses()
+ *
+ *  Fetches all diagnosis records from the backend lookup table.
+ *  Returns an array of { id, diagnosis, treatment, medicine } objects.
+ *  Populated from dental_dataset_100_records.csv via seed_diagnoses.py.
+ * ══════════════════════════════════════════════════════════════════ */
+export async function fetchDiagnoses() {
+  try {
+    const res = await fetch('/diagnoses/');
+    if (!res.ok) throw new Error('Failed to fetch diagnoses');
+    return await res.json();
+  } catch (err) {
+    console.error('[patientService] fetchDiagnoses error:', err);
+    return [];
+  }
+}

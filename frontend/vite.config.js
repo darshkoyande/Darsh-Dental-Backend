@@ -10,6 +10,7 @@ export default defineConfig({
     open: true,
     proxy: {
       // Forward all backend API paths to the FastAPI server
+      '/api':           'http://localhost:8000',
       '/auth':          'http://localhost:8000',
       '/chat':          'http://localhost:8000',
       '/notifications': 'http://localhost:8000',
@@ -21,6 +22,8 @@ export default defineConfig({
       '/fhir':          'http://localhost:8000',
       '/abdm':          'http://localhost:8000',
       '/audit-logs':    'http://localhost:8000',
+      '/uploads':       'http://localhost:8000',
+      '/diagnoses':     'http://localhost:8000',
     },
   },
 })

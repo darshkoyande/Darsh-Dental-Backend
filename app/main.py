@@ -8,8 +8,9 @@ from app.config import settings
 from app.database import engine
 from app import models
 from app.middleware import audit_logging_middleware
-from app.routers import patients, charts, fhir, abdm, audits, schedule, imaging, reports, auth, chat, dentition
+from app.routers import patients, charts, fhir, abdm, audits, schedule, imaging, reports, auth, chat, dentition, diagnoses
 from app.database import SessionLocal
+from app.seed_diagnoses import seed_diagnoses
 
 
 @asynccontextmanager
@@ -19,6 +20,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         auth.seed_users(db)
+        seed_diagnoses(db)  # Seed dental diagnosis dataset from CSV
     finally:
         db.close()
     yield
@@ -52,6 +54,7 @@ app.include_router(audits.router)
 app.include_router(auth.router)   # B1: Authentication
 app.include_router(chat.router)   # B2/B3: Secure Chat & Notifications
 app.include_router(dentition.router)  # Flexible dentition tracking
+app.include_router(diagnoses.router)  # Dental diagnosis dataset lookup
 
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 
@@ -69,6 +72,10 @@ async def read_root(request: Request):
         "standards": ["FHIR R4", "ABDM"]
     }
 
+
+uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 

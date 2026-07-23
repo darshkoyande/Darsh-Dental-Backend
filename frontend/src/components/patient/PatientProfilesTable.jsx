@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRole } from '../../context/RoleContext';
 import axios from 'axios';
+import AddPatientForm from './AddPatientForm';
 
 const API_URL = '/patients';
 import {
@@ -279,66 +280,13 @@ export default function PatientProfilesTable({ patients: propPatients = [], onRe
       )}
 
       {/* ── Create Patient Form ─────────────────── */}
-      <div className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 mb-6">
-        <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-dental-50 text-dental-600">
-            <Users className="w-4 h-4" />
-          </div>
-          Register New Patient (Backend Synced)
-        </h3>
-        
-        {formSuccess && (
-          <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Patient registered successfully in FastAPI database!
-          </div>
-        )}
-
-        <form onSubmit={handleAddPatientSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
-            <input
-              type="text"
-              placeholder="e.g. Rajiv Kumar"
-              value={fullNameInput}
-              onChange={(e) => setFullNameInput(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-dental-300 transition-all"
-            />
-          </div>
-          
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Age</label>
-            <input
-              type="number"
-              placeholder="e.g. 28"
-              value={ageInput}
-              onChange={(e) => setAgeInput(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-dental-300 transition-all"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Gender</label>
-            <select
-              value={genderInput}
-              onChange={(e) => setGenderInput(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-dental-300 transition-all"
-            >
-              <option value="">Select gender…</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-dental-500 to-dental-600 text-white font-semibold text-sm hover:shadow-glow-blue transition-all disabled:opacity-50"
-          >
-            {isSubmitting ? 'Registering...' : 'Register Patient'}
-          </button>
-        </form>
+      <div className="mb-6">
+        <AddPatientForm
+          onSavePatient={async (patientData) => {
+            await axios.post(`${API_URL}/`, patientData);
+            await fetchPatients();
+          }}
+        />
       </div>
 
       {/* ── Search results indicator ─────────── */}

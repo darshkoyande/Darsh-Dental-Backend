@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database import Base
@@ -35,6 +35,17 @@ class ChatMessage(Base):
     receiver = relationship("User", foreign_keys=[receiver_id])
 
 
+class DiagnosisRecord(Base):
+    """Lookup table seeded from the dental dataset CSV.
+    Each row maps a Diagnosis to its standard Treatment and Medicine."""
+    __tablename__ = "diagnosis_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    diagnosis = Column(String, unique=True, nullable=False, index=True)
+    treatment = Column(String, nullable=False)
+    medicine = Column(String, nullable=True)
+
+
 class Patient(Base):
     __tablename__ = "patients"
 
@@ -49,6 +60,11 @@ class Patient(Base):
     last_visit = Column(String, nullable=True)
     next_visit = Column(String, nullable=True)
     treatment_status = Column(String, default="In Plan")
+    # ── Clinical Diagnosis Fields (from CSV dataset) ──────────────────────────
+    diagnosis = Column(String, nullable=True)        # e.g. "Bad Breath"
+    treatment = Column(String, nullable=True)         # e.g. "Oral Hygiene Therapy"
+    medicine = Column(String, nullable=True)          # e.g. "Chlorhexidine"
+    treatment_date = Column(Date, nullable=True)      # Date the treatment was / will be done
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     charts = relationship("PerioChart", back_populates="patient", cascade="all, delete-orphan")

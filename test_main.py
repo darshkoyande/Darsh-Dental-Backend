@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.database import Base, engine, SessionLocal
 from app.main import app
 from app import models, schemas, crud
+from app.seed_diagnoses import seed_diagnoses
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_db():
@@ -20,7 +21,11 @@ def setup_db():
     db.query(models.PerioChart).delete()
     db.query(models.Patient).delete()
     db.query(models.AuditLog).delete()
+    db.query(models.DiagnosisRecord).delete()
     db.commit()
+
+    # Seed diagnoses
+    seed_diagnoses(db)
 
     # Seed patient
     test_patient = models.Patient(
@@ -263,4 +268,39 @@ def test_delete_patient():
     # 3. Verify patient is deleted
     get_res = client.get(f"/patients/{patient_id}")
     assert get_res.status_code == 404
+
+
+def test_get_diagnoses_list():
+    response = client.get("/diagnoses/")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) > 0
+    # Confirm "Bad Breath" exists in the seeded data
+    bad_breath_record = next((d for d in data if d["diagnosis"] == "Bad Breath"), None)
+    assert bad_breath_record is not None
+    assert bad_breath_record["treatment"] == "Oral Hygiene Therapy"
+    assert bad_breath_record["medicine"] == "Chlorhexidine"
+
+
+def test_create_patient_with_diagnosis_fields():
+    payload = {
+        "name": "Clinical Test Patient",
+        "age": 45,
+        "gender": "Male",
+        "primary_doctor": "Dr. Mehra",
+        "status": "Active",
+        "diagnosis": "Bad Breath",
+        "treatment": "Oral Hygiene Therapy",
+        "medicine": "Chlorhexidine",
+        "treatment_date": "2026-07-22"
+    }
+    response = client.post("/patients/", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Clinical Test Patient"
+    assert data["diagnosis"] == "Bad Breath"
+    assert data["treatment"] == "Oral Hygiene Therapy"
+    assert data["medicine"] == "Chlorhexidine"
+    assert data["treatment_date"] == "2026-07-22"
+
 

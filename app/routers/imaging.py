@@ -42,7 +42,8 @@ async def upload_imaging_record(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
     # Save file to uploads directory
     import os, uuid
-    upload_dir = os.path.join(os.getcwd(), "uploads")
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    upload_dir = os.path.join(base_dir, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
     filename = f"{uuid.uuid4().hex}_{file.filename}"
     file_path = os.path.join(upload_dir, filename)
@@ -58,20 +59,12 @@ async def upload_imaging_record(
         radiologist_notes=radiologist_notes,
     )
     db_imaging = crud.create_imaging_record(db=db, imaging=imaging_data)
-    # Update file_url
-    db_imaging.file_url = file_path
+    # Update file_url with a portable relative path
+    db_imaging.file_url = f"/uploads/{filename}"
     db.commit()
     db.refresh(db_imaging)
     return db_imaging
-    """Create a new imaging record for a patient."""
-    # Verify patient exists
-    db_patient = crud.get_patient(db, patient_id=imaging.patient_id)
-    if not db_patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
-        )
-    return crud.create_imaging_record(db=db, imaging=imaging)
+
 
 @router.get("/records/{imaging_id}", response_model=schemas.ImagingRecordResponse)
 def get_imaging_record(imaging_id: int, db: Session = Depends(database.get_db)):

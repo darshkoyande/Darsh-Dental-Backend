@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Activity,
   Users,
@@ -15,7 +16,9 @@ import PerioChart from '../components/dental/PerioChart';
 import PatientRecord from '../components/patient/PatientRecord';
 import TreatmentPlan from '../components/patient/TreatmentPlan';
 import PatientDirectory from '../components/patient/PatientDirectory';
+import AddPatientForm from '../components/patient/AddPatientForm';
 import ChatBox from '../components/chat/ChatBox';
+import axios from 'axios';
 
 /**
  * Dashboard — Central view that adapts based on user role.
@@ -48,6 +51,13 @@ export default function Dashboard() {
    ═══════════════════════════════════════════════ */
 function DentistDashboard() {
   const { activePatient, currentUser } = useRole();
+  const [formKey, setFormKey] = useState(0); // bump to re-mount PatientDirectory after add
+
+  const handleSavePatient = async (patientData) => {
+    await axios.post('/patients/', patientData);
+    // Bump key so PatientDirectory re-fetches after a new patient is added
+    setFormKey((k) => k + 1);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -96,7 +106,7 @@ function DentistDashboard() {
       </div>
 
       {/* ── Patient Directory (Always visible) ── */}
-      <PatientDirectory />
+      <PatientDirectory key={formKey} />
 
       {/* ── Conditional: Clinical panels only show when patient is selected ── */}
       {activePatient ? (
@@ -122,14 +132,8 @@ function DentistDashboard() {
           <PerioChart key={`perio-${activePatient.id}`} />
         </>
       ) : (
-        /* ── Prompt to select patient ──────────── */
-        <div className="glass-card p-8 text-center">
-          <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-slate-700">Select a Patient to Begin</h3>
-          <p className="text-sm text-slate-400 mt-1 max-w-md mx-auto">
-            Choose a patient from the directory above to access their charting center, treatment plans, and clinical records.
-          </p>
-        </div>
+        /* ── No patient selected: show Add Patient form ── */
+        <AddPatientForm onSavePatient={handleSavePatient} />
       )}
 
 

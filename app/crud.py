@@ -32,7 +32,12 @@ def create_patient(db: Session, patient: schemas.PatientCreate):
         primary_doctor=patient.primary_doctor,
         last_visit=patient.last_visit,
         next_visit=patient.next_visit,
-        treatment_status=patient.treatment_status
+        treatment_status=patient.treatment_status,
+        # ── New clinical diagnosis fields ───────────────────────────
+        diagnosis=patient.diagnosis,
+        treatment=patient.treatment,
+        medicine=patient.medicine,
+        treatment_date=patient.treatment_date,
     )
     db.add(db_patient)
     db.commit()
@@ -169,6 +174,12 @@ def create_audit_log(db: Session, action: str, resource_type: str, resource_id: 
 
 def get_audit_logs(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.AuditLog).order_by(models.AuditLog.timestamp.desc()).offset(skip).limit(limit).all()
+
+
+# --- DIAGNOSIS CRUD ---
+def get_all_diagnoses(db: Session):
+    """Return all DiagnosisRecord rows ordered alphabetically by diagnosis name."""
+    return db.query(models.DiagnosisRecord).order_by(models.DiagnosisRecord.diagnosis).all()
 
 # --- APPOINTMENT (SCHEDULE) CRUD ---
 def create_appointment(db: Session, appointment: schemas.AppointmentCreate):

@@ -1,8 +1,10 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import axios from 'axios';
+import { useRole } from '../../context/RoleContext';
 import {
   X, Clock, Stethoscope, FileImage, Camera, ChevronRight,
   CheckCircle2, Circle, Calendar, User, StickyNote,
-  ImageIcon, Scan, FolderOpen, Upload, Plus,
+  ImageIcon, Scan, FolderOpen, Upload, Plus, Loader2,
 } from 'lucide-react';
 
 /**
@@ -172,41 +174,123 @@ function DummyRadiograph({ type }) {
   );
 }
 
+/* ── Saved Image Preview with fallback ───────── */
+function DbAttachmentPreview({ img }) {
+  const [hasError, setHasError] = useState(false);
+
+  return (
+    <div className="h-40 overflow-hidden rounded-t-xl bg-slate-900 relative">
+      {img.dataUrl && !hasError ? (
+        <img
+          src={img.dataUrl}
+          alt={img.label}
+          className="w-full h-full object-cover"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <DummyRadiograph type={img.type} />
+      )}
+      <div className="absolute top-2 right-2">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold
+                       bg-emerald-500 text-white shadow-sm">
+          <Upload className="w-2.5 h-2.5" />
+          Saved
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function ToothDetailPanel({ toothNumber, label, status, onClose }) {
   // Display label falls back to the FDI tooth number if no label provided
   const displayLabel = label ?? `#${toothNumber}`;
   const clinicalData = TOOTH_CLINICAL_DATA[toothNumber] || getDefaultData(toothNumber, status);
   const [activeTab, setActiveTab] = useState('history');
-  const [uploadedImages, setUploadedImages] = useState([]);
+  
+  // Real database attachments
+  const { activePatient } = useRole();
+  const [dbAttachments, setDbAttachments] = useState([]);
+  const [dbAttachmentsLoading, setDbAttachmentsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
   const fileInputRef = useRef(null);
 
-  const handleFileUpload = useCallback((e) => {
+  const fetchDbAttachments = useCallback(async () => {
+    if (!activePatient) return;
+    setDbAttachmentsLoading(true);
+    try {
+      const { data } = await axios.get(`/imaging/patients/${activePatient.id}/records`);
+      // Filter records that match this tooth number
+      const toothRecords = (data || []).filter(rec => {
+        if (!rec.tooth_numbers) return false;
+        const teeth = rec.tooth_numbers.split(',').map(s => s.trim());
+        return teeth.includes(String(toothNumber));
+      }).map(rec => {
+        const filename = rec.file_url ? rec.file_url.split(/[/\\]/).pop() : '';
+        return {
+          id: rec.id,
+          label: rec.findings || 'Radiograph / Photo',
+          type: rec.imaging_type?.toLowerCase().includes('x-ray') || rec.imaging_type?.toLowerCase().includes('cbct') ? 'xray' : 'photo',
+          date: new Date(rec.date_taken).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          size: 'Saved',
+          dataUrl: filename ? `/uploads/${filename}` : null,
+          isDb: true
+        };
+      });
+      setDbAttachments(toothRecords);
+    } catch (err) {
+      console.error('Failed to fetch imaging records:', err);
+    } finally {
+      setDbAttachmentsLoading(false);
+    }
+  }, [activePatient, toothNumber]);
+
+  useEffect(() => {
+    fetchDbAttachments();
+  }, [fetchDbAttachments]);
+
+  const handleFileUpload = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
-    files.forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
+    if (files.length === 0 || !activePatient) return;
 
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        setUploadedImages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + Math.random(),
-            label: file.name.replace(/\.[^.]+$/, ''),
-            type: 'upload',
-            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-            size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
-            dataUrl: evt.target.result,
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
+    setIsUploading(true);
+    try {
+      for (const file of files) {
+        const lowerName = file.name.toLowerCase();
+        const isImage = file.type.startsWith('image/') || 
+                        lowerName.endsWith('.jpg') || 
+                        lowerName.endsWith('.jpeg') || 
+                        lowerName.endsWith('.png') || 
+                        lowerName.endsWith('.webp') || 
+                        lowerName.endsWith('.gif') || 
+                        lowerName.endsWith('.bmp') || 
+                        lowerName.endsWith('.tiff') || 
+                        lowerName.endsWith('.dcm');
+        if (!isImage) continue;
 
-    // Reset input value so the same file can be re-uploaded
-    e.target.value = '';
-  }, []);
+        const formData = new FormData();
+        formData.append('patient_id', activePatient.id);
+        formData.append('imaging_type', file.name.toLowerCase().includes('xray') || file.name.toLowerCase().includes('x-ray') ? 'X-Ray' : 'Intraoral Photo');
+        formData.append('tooth_numbers', String(toothNumber));
+        formData.append('findings', file.name.replace(/\.[^.]+$/, ''));
+        formData.append('file', file);
 
-  const totalAttachments = clinicalData.attachments.length + uploadedImages.length;
+        await axios.post('/imaging/records/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      // Refresh attachments from backend
+      await fetchDbAttachments();
+    } catch (err) {
+      console.error('Failed to upload file:', err);
+    } finally {
+      setIsUploading(false);
+      // Reset input value
+      e.target.value = '';
+    }
+  }, [activePatient, toothNumber, fetchDbAttachments]);
+
+  const totalAttachments = clinicalData.attachments.length + dbAttachments.length;
 
   return (
     <>
@@ -351,8 +435,7 @@ export default function ToothDetailPanel({ toothNumber, label, status, onClose }
                 </span>
               </div>
 
-              {/* ── Existing Attachments with Radiograph Previews ── */}
-              {clinicalData.attachments.length === 0 && uploadedImages.length === 0 ? (
+              {clinicalData.attachments.length === 0 && dbAttachments.length === 0 ? (
                 <div className="text-center py-8 text-slate-300">
                   <FileImage className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-xs font-medium">No attachments</p>
@@ -399,8 +482,8 @@ export default function ToothDetailPanel({ toothNumber, label, status, onClose }
                     );
                   })}
 
-                  {/* Uploaded images from user */}
-                  {uploadedImages.map((img, idx) => (
+                  {/* Real database-persisted images */}
+                  {dbAttachments.map((img, idx) => (
                     <div
                       key={img.id}
                       className="group rounded-xl border border-emerald-200 bg-white overflow-hidden
@@ -408,21 +491,8 @@ export default function ToothDetailPanel({ toothNumber, label, status, onClose }
                                  animate-slide-up"
                       style={{ animationDelay: `${(clinicalData.attachments.length + idx) * 60}ms` }}
                     >
-                      {/* Uploaded Image Preview */}
-                      <div className="h-40 overflow-hidden rounded-t-xl bg-slate-900 relative">
-                        <img
-                          src={img.dataUrl}
-                          alt={img.label}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-2 right-2">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold
-                                         bg-emerald-500 text-white shadow-sm">
-                            <Upload className="w-2.5 h-2.5" />
-                            Uploaded
-                          </span>
-                        </div>
-                      </div>
+                      {/* Saved Image Preview with fallback */}
+                      <DbAttachmentPreview img={img} />
 
                       {/* Label + meta */}
                       <div className="px-4 py-3 flex items-center justify-between">
@@ -451,21 +521,32 @@ export default function ToothDetailPanel({ toothNumber, label, status, onClose }
                 accept="image/*"
                 multiple
                 className="hidden"
+                disabled={isUploading}
                 onChange={handleFileUpload}
                 id="attachment-upload-input"
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
                 id="upload-record-btn"
                 className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
                            bg-gradient-to-r from-dental-500 to-dental-600 text-white text-sm font-semibold
                            shadow-sm hover:shadow-glow-blue active:scale-[0.98] transition-all duration-200
-                           border border-dental-400"
+                           border border-dental-400 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                  <Plus className="w-3.5 h-3.5" />
-                </div>
-                Upload Record
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                      <Plus className="w-3.5 h-3.5" />
+                    </div>
+                    Upload Record
+                  </>
+                )}
               </button>
               <p className="text-[10px] text-slate-400 text-center mt-1.5">
                 Accepts JPEG, PNG, and other image formats

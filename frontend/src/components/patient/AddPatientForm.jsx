@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   UserPlus,
   User,
@@ -11,21 +11,20 @@ import {
   Loader2,
   Sparkles,
   Droplets,
+  Stethoscope,
+  Pill,
+  FlaskConical,
+  CalendarCheck,
+  Wand2,
 } from 'lucide-react';
+import { fetchDiagnoses } from '../../services/patientService';
 
 /**
- * AddPatientForm — Clinical patient intake form with field-level validation.
+ * AddPatientForm — Clinical patient intake form with Diagnosis selection,
+ * auto-filled Treatment & Medicine, and a Treatment Date picker.
  *
  * Props:
- *   onSavePatient(patientData) — Callback to persist the new patient.
- *                                 Currently wired to local state; designed to be
- *                                 easily swapped for a backend API call.
- *
- * ┌─────────────────────────────────────────────┐
- * │  BACKEND: POST /api/patients                │
- * │  Replace the `onSavePatient` callback with  │
- * │  a fetch() call in the parent component.    │
- * └─────────────────────────────────────────────┘
+ *   onSavePatient(patientData) — Callback that posts to POST /patients/
  */
 
 /* ── Initial empty form state ─────────────────── */
@@ -37,6 +36,10 @@ const EMPTY_FORM = {
   bloodGroup: '',
   allergies: '',
   clinicalNotes: '',
+  diagnosis: '',
+  treatment: '',
+  medicine: '',
+  treatmentDate: '',
 };
 
 /* ── Gender options ───────────────────────────── */
@@ -50,10 +53,22 @@ export default function AddPatientForm({ onSavePatient }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Diagnosis dataset
+  const [diagnoses, setDiagnoses] = useState([]);
+  const [diagnosesLoading, setDiagnosesLoading] = useState(true);
+  const [selectedDiagRecord, setSelectedDiagRecord] = useState(null);
+
+  /* ── Load diagnoses from backend on mount ────── */
+  useEffect(() => {
+    fetchDiagnoses().then((data) => {
+      setDiagnoses(data);
+      setDiagnosesLoading(false);
+    });
+  }, []);
+
   /* ── Field change handler ───────────────────── */
   const handleChange = useCallback((field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error on change if field was previously invalid
     setErrors((prev) => {
       if (prev[field]) {
         const next = { ...prev };
@@ -64,10 +79,26 @@ export default function AddPatientForm({ onSavePatient }) {
     });
   }, []);
 
+  /* ── Diagnosis selection — auto-fill treatment & medicine ── */
+  const handleDiagnosisChange = useCallback((diagnosisName) => {
+    const record = diagnoses.find((d) => d.diagnosis === diagnosisName) || null;
+    setSelectedDiagRecord(record);
+    setFormData((prev) => ({
+      ...prev,
+      diagnosis: diagnosisName,
+      treatment: record?.treatment || '',
+      medicine: record?.medicine || '',
+    }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.diagnosis;
+      return next;
+    });
+  }, [diagnoses]);
+
   /* ── Mark field as "touched" on blur ────────── */
   const handleBlur = useCallback((field) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
-    // Validate single field on blur
     const error = validateField(field, formData[field]);
     setErrors((prev) => (error ? { ...prev, [field]: error } : (() => { const n = { ...prev }; delete n[field]; return n; })()));
   }, [formData]);
@@ -104,7 +135,7 @@ export default function AddPatientForm({ onSavePatient }) {
   /* ── Full-form validation ───────────────────── */
   const validateAll = () => {
     const newErrors = {};
-    Object.keys(EMPTY_FORM).forEach((field) => {
+    ['fullName', 'age', 'gender', 'contactNumber', 'bloodGroup', 'clinicalNotes'].forEach((field) => {
       const error = validateField(field, formData[field]);
       if (error) newErrors[field] = error;
     });
@@ -115,9 +146,8 @@ export default function AddPatientForm({ onSavePatient }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Mark all fields as touched to show any remaining errors
     const allTouched = {};
-    Object.keys(EMPTY_FORM).forEach((f) => (allTouched[f] = true));
+    ['fullName', 'age', 'gender', 'contactNumber', 'bloodGroup', 'clinicalNotes'].forEach((f) => (allTouched[f] = true));
     setTouched(allTouched);
 
     const validationErrors = validateAll();
@@ -128,42 +158,27 @@ export default function AddPatientForm({ onSavePatient }) {
 
     setIsSubmitting(true);
 
-    // Build patient object
     const newPatient = {
-      id: `DC-${Date.now().toString().slice(-4)}`,
-      fullName: formData.fullName.trim(),
+      name: formData.fullName.trim(),
       age: Number(formData.age),
       gender: formData.gender,
-      contactNumber: formData.contactNumber.trim(),
-      bloodGroup: formData.bloodGroup,
-      allergies: formData.allergies ? formData.allergies.trim() : '',
-      clinicalNotes: formData.clinicalNotes.trim(),
-      createdAt: new Date().toISOString(),
+      primary_doctor: 'Dr. Mehra',
+      status: 'Active',
+      treatment_status: 'In Plan',
+      // Clinical diagnosis fields
+      diagnosis: formData.diagnosis || null,
+      treatment: formData.treatment || null,
+      medicine: formData.medicine || null,
+      treatment_date: formData.treatmentDate || null,
     };
 
-    /**
-     * ┌──────────────────────────────────────────────┐
-     * │  BACKEND SWAP POINT                          │
-     * │  Replace onSavePatient(newPatient) with:     │
-     * │                                              │
-     * │  const res = await fetch('/api/patients', {  │
-     * │    method: 'POST',                           │
-     * │    headers: { 'Content-Type': 'application/json' },│
-     * │    body: JSON.stringify(newPatient),          │
-     * │  });                                         │
-     * │  const saved = await res.json();             │
-     * └──────────────────────────────────────────────┘
-     */
     try {
       await onSavePatient(newPatient);
-
-      // Show success feedback
       setShowSuccess(true);
       setFormData(EMPTY_FORM);
       setErrors({});
       setTouched({});
-
-      // Auto-dismiss success toast after 3s
+      setSelectedDiagRecord(null);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
       setErrors({ _form: 'Failed to save patient. Please try again.' });
@@ -229,7 +244,7 @@ export default function AddPatientForm({ onSavePatient }) {
             <input
               id="patient-fullname"
               type="text"
-              placeholder="e.g. Rajiv Kumar"
+              placeholder="e.g. Vikram Malhotra"
               value={formData.fullName}
               onChange={(e) => handleChange('fullName', e.target.value)}
               onBlur={() => handleBlur('fullName')}
@@ -356,7 +371,7 @@ export default function AddPatientForm({ onSavePatient }) {
             )}
           </div>
 
-          {/* ─── Allergies (optional, text input) ── */}
+          {/* ─── Allergies (optional) ─────────────── */}
           <div className="space-y-1.5">
             <label htmlFor="patient-allergies" className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wider">
               <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
@@ -368,10 +383,10 @@ export default function AddPatientForm({ onSavePatient }) {
               placeholder="e.g. Penicillin, Latex (comma-separated)"
               value={formData.allergies || ''}
               onChange={(e) => handleChange('allergies', e.target.value)}
-              className={`w-full px-4 py-2.5 rounded-xl border text-sm text-slate-700
+              className="w-full px-4 py-2.5 rounded-xl border text-sm text-slate-700
                          placeholder:text-slate-300 focus:outline-none focus:ring-2
                          transition-all duration-200 border-slate-200 bg-slate-50/50
-                         focus:ring-dental-300 focus:border-dental-400`}
+                         focus:ring-dental-300 focus:border-dental-400"
             />
           </div>
 
@@ -383,7 +398,7 @@ export default function AddPatientForm({ onSavePatient }) {
             </label>
             <textarea
               id="patient-notes"
-              rows={4}
+              rows={3}
               placeholder="Enter initial observations, chief complaint, or referral notes…"
               value={formData.clinicalNotes}
               onChange={(e) => handleChange('clinicalNotes', e.target.value)}
@@ -398,9 +413,118 @@ export default function AddPatientForm({ onSavePatient }) {
               </p>
             )}
           </div>
+
         </div>
 
-        {/* ── Submit Button ──────────────────────── */}
+        {/* ══════════════════════════════════════════
+            DIAGNOSIS SECTION
+            ══════════════════════════════════════════ */}
+        <div className="mt-6 pt-5 border-t border-slate-100">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-1.5 rounded-lg bg-blue-50">
+              <Stethoscope className="w-4 h-4 text-blue-500" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-700">Clinical Diagnosis</h3>
+            <span className="text-xs text-slate-400 ml-1">— Treatment &amp; medicine auto-fill based on selection</span>
+          </div>
+
+          {/* ─── Diagnosis Dropdown ──────────────── */}
+          <div className="space-y-1.5 mb-4">
+            <label htmlFor="patient-diagnosis" className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
+              Diagnosis <span className="text-red-400">*</span>
+            </label>
+            <div className="relative">
+              {diagnosesLoading ? (
+                <div className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50
+                                flex items-center gap-2 text-sm text-slate-400">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading diagnoses…
+                </div>
+              ) : (
+                <>
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <Stethoscope className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <select
+                    id="patient-diagnosis"
+                    value={formData.diagnosis}
+                    onChange={(e) => handleDiagnosisChange(e.target.value)}
+                    className={`w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm appearance-none cursor-pointer
+                               focus:outline-none focus:ring-2 transition-all duration-200
+                               ${formData.diagnosis ? 'text-slate-700' : 'text-slate-400'}
+                               border-slate-200 bg-slate-50/50 focus:ring-blue-300 focus:border-blue-400`}
+                  >
+                    <option value="">Select a diagnosis…</option>
+                    {diagnoses.map((d) => (
+                      <option key={d.id} value={d.diagnosis}>{d.diagnosis}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                </>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 flex items-center gap-1">
+              <Wand2 className="w-3 h-3" />
+              Treatment and medicine will auto-fill based on your selection
+            </p>
+          </div>
+
+          {/* ─── Auto-fill Result Panel ──────────── */}
+          {selectedDiagRecord && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-blue-50/60 border border-blue-100 animate-fade-in">
+              <div className="flex items-center gap-2 mb-3">
+                <Wand2 className="w-4 h-4 text-blue-500" />
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">Auto-filled from Diagnosis:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Suggested Treatment */}
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <div className="p-1.5 rounded-lg bg-emerald-100 flex-shrink-0">
+                    <FlaskConical className="w-3.5 h-3.5 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">Suggested Treatment</p>
+                    <p className="text-sm font-bold text-emerald-800 truncate">{selectedDiagRecord.treatment}</p>
+                  </div>
+                </div>
+                {/* Prescribed Medicine */}
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-100">
+                  <div className="p-1.5 rounded-lg bg-amber-100 flex-shrink-0">
+                    <Pill className="w-3.5 h-3.5 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Prescribed Medicine</p>
+                    <p className="text-sm font-bold text-amber-800 truncate">
+                      {selectedDiagRecord.medicine || 'None'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Treatment Date ──────────────────── */}
+          <div className="space-y-1.5">
+            <label htmlFor="patient-treatment-date" className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <CalendarCheck className="w-3.5 h-3.5 text-slate-400" />
+              Treatment Date
+            </label>
+            <input
+              id="patient-treatment-date"
+              type="date"
+              value={formData.treatmentDate}
+              onChange={(e) => handleChange('treatmentDate', e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border text-sm text-slate-700
+                         focus:outline-none focus:ring-2 transition-all duration-200
+                         border-slate-200 bg-slate-50/50 focus:ring-blue-300 focus:border-blue-400
+                         cursor-pointer"
+            />
+            <p className="text-[11px] text-slate-400">Date when the treatment is/will be performed</p>
+          </div>
+        </div>
+
+        {/* ── Submit Buttons ──────────────────────── */}
         <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t border-slate-100">
           <button
             type="button"
@@ -408,6 +532,7 @@ export default function AddPatientForm({ onSavePatient }) {
               setFormData(EMPTY_FORM);
               setErrors({});
               setTouched({});
+              setSelectedDiagRecord(null);
             }}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500
                        border border-slate-200 hover:bg-slate-50 hover:text-slate-700
@@ -415,7 +540,7 @@ export default function AddPatientForm({ onSavePatient }) {
                        transition-all duration-200"
             id="add-patient-clear"
           >
-            Clear Form
+            ↺ Clear
           </button>
           <button
             type="submit"
@@ -435,7 +560,7 @@ export default function AddPatientForm({ onSavePatient }) {
             ) : (
               <>
                 <UserPlus className="w-4 h-4" />
-                Add Patient
+                Save Patient
               </>
             )}
           </button>
