@@ -92,22 +92,21 @@ export default function LoginView() {
         token,
       });
     } catch (err) {
+      const isMockDoctor = username.trim().toLowerCase() === 'dr_mehra' && password === 'password123';
+      const isMockPatient = username.trim().toLowerCase() === 'rajivkumar' && password === 'password123';
+      const isOfflineFailure = !err.response || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error') || err.message?.includes('Failed to fetch') || err.response?.status === 404 || err.response?.status >= 500;
+
       if (err.response?.status === 401) {
         setError('Invalid username or password. Please try again.');
-      } else if (!err.response) {
-        // Network error — fall back to offline mock login
-        const isMockDoctor =
-          username === 'dr_mehra' && password === 'password123';
-        const isMockPatient =
-          username === 'rajivkumar' && password === 'password123';
-
+      } else if (isOfflineFailure && (isMockDoctor || isMockPatient)) {
+        // Backend unavailable — fall back to offline mock login for demo users
         if (isMockDoctor) {
-          login({ name: 'Dr. Anita Mehra', role: 'dentist', targetPatientId: '' });
-        } else if (isMockPatient) {
-          login({ name: 'Rajivkumar', role: 'patient', targetPatientId: 'DC-2001' });
+          login({ id: 'demo-doctor', name: 'Dr. Anita Mehra', role: 'dentist', targetPatientId: '' });
         } else {
-          setError('Backend unavailable. Try: dr_mehra / password123 or rajivkumar / password123');
+          login({ id: 'demo-patient', name: 'Rajivkumar', role: 'patient', targetPatientId: 'DC-2001' });
         }
+      } else if (isOfflineFailure) {
+        setError('Backend unavailable. Try: dr_mehra / password123 or rajivkumar / password123');
       } else {
         setError(err.response?.data?.detail || 'Login failed. Please try again.');
       }
