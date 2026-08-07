@@ -44,7 +44,15 @@ export default function PatientDirectory() {
       setError(null);
       setLoading(true);
       const { data } = await axios.get('/patients/');
-      setPatients((data || []).map(mapBackendPatient));
+      const mapped = (data || []).map(mapBackendPatient);
+      setPatients(mapped);
+
+      // If no patient is currently active, auto-select the first patient so
+      // downstream clinical panels (treatment plan, charting) become visible.
+      // This improves discoverability during local development.
+      if (!activePatient && mapped.length > 0) {
+        selectPatient(mapped[0].id);
+      }
     } catch (err) {
       setError('Failed to load patients from backend.');
       console.error('PatientDirectory fetch error:', err);
