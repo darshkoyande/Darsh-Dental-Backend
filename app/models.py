@@ -246,3 +246,20 @@ class PatientToothRecord(Base):
     )
 
     patient = relationship("Patient", back_populates="tooth_records")
+
+class ToothTreatment(Base):
+    __tablename__ = "tooth_treatments" 
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    tooth_number = Column(Integer, nullable=False)
+
+    procedure = Column(String, nullable=False)     
+    dentist = Column(String, nullable=False)         
+    treatment_date = Column(Date, nullable=False)    
+    status = Column(String, nullable=False, default="completed") 
+    notes = Column(Text, nullable=True)
+
+    recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc)) 
+
+    patient = relationship("Patient")

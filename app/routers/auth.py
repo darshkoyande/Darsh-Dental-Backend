@@ -48,23 +48,17 @@ TOKEN_TTL_SECONDS = 60 * 60 * 8  # 8 hours
 
 
 def _create_token(user: models.User) -> str:
-    """
-    Returns a base64-encoded JSON payload.
-    NOT cryptographically signed — suitable for demo/dev only.
-    Replace with python-jose or PyJWT for production.
-    """
     payload = {
         "user_id": user.id,
         "username": user.username,
         "role": user.role,
+        "linked_patient_id": user.linked_patient_id,
+        "name": user.name,
         "exp": int(time.time()) + TOKEN_TTL_SECONDS,
     }
     raw = json.dumps(payload, separators=(",", ":"))
     return base64.b64encode(raw.encode()).decode()
-
-
 def decode_token(token: str) -> schemas.TokenData:
-    """Decode and return TokenData from a mock token. Raises ValueError on failure."""
     try:
         raw = base64.b64decode(token.encode()).decode()
         payload = json.loads(raw)
@@ -74,6 +68,8 @@ def decode_token(token: str) -> schemas.TokenData:
             user_id=payload["user_id"],
             username=payload["username"],
             role=payload["role"],
+            linked_patient_id=payload.get("linked_patient_id"),
+            name=payload.get("name", ""),
         )
     except Exception as exc:
         raise ValueError(f"Invalid token: {exc}") from exc
