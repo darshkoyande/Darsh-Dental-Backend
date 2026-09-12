@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     app_description: str = "FHIR R4 and ABDM Compliant Periodontal Charting backend for clinical records."
     app_version: str = "1.0.0"
     debug: bool = False
+    gemini_api_key: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

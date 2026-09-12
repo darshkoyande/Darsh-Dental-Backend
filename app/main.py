@@ -8,7 +8,7 @@ from app.config import settings
 from app.database import engine
 from app import models
 from app.middleware import audit_logging_middleware
-from app.routers import patients, charts, fhir, abdm, audits, schedule, imaging, reports, auth, chat, dentition, diagnoses
+from app.routers import patients, charts, fhir, abdm, audits, schedule, imaging, reports, auth, chat, dentition, diagnoses, tooth_treatments, patient_agent, dentist_agent
 from app.database import SessionLocal
 from app.seed_diagnoses import seed_diagnoses
 
@@ -55,6 +55,9 @@ app.include_router(auth.router)   # B1: Authentication
 app.include_router(chat.router)   # B2/B3: Secure Chat & Notifications
 app.include_router(dentition.router)  # Flexible dentition tracking
 app.include_router(diagnoses.router)  # Dental diagnosis dataset lookup
+app.include_router(tooth_treatments.router)
+app.include_router(patient_agent.router)
+app.include_router(dentist_agent.router)
 
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 

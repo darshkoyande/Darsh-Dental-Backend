@@ -448,3 +448,40 @@ def upsert_tooth_records_batch(
         )
         results.append(record)
     return results
+
+
+
+def create_tooth_treatment(db:Session, treatment:schemas.ToothTreatmentCreate):
+    db_treatment = models.ToothTreatment(
+        patient_id=treatment.patient_id,
+        procedure=treatment.procedure,
+        tooth_number=treatment.tooth_number,
+        dentist=treatment.dentist,
+        treatment_date=treatment.treatment_date,
+        status=treatment.status,
+        notes=treatment.notes
+    )
+    db.add(db_treatment)
+    db.commit()
+    db.refresh(db_treatment)
+    return db_treatment
+
+def get_patient_tooth_treatments(db: Session, patient_id: int, tooth_number: int = None, skip: int = 0, limit: int = 100):
+    query = db.query(models.ToothTreatment).filter(
+        models.ToothTreatment.patient_id == patient_id
+    )
+    # Only narrow further to one tooth if a tooth_number was actually passed in
+    if tooth_number is not None:
+        query = query.filter(models.ToothTreatment.tooth_number == tooth_number)
+
+    return query.order_by(models.ToothTreatment.treatment_date.desc()).offset(skip).limit(limit).all()
+
+def get_tooth_treatment(db: Session, treatment_id: int):
+    return db.query(models.ToothTreatment).filter(models.ToothTreatment.id == treatment_id).first()
+
+def delete_tooth_treatment(db: Session, treatment_id: int):
+    db_treatment = get_tooth_treatment(db, treatment_id)
+    if db_treatment:
+        db.delete(db_treatment)
+        db.commit()
+    return db_treatment

@@ -171,6 +171,26 @@ class ImagingRecordResponse(ImagingRecordBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class ToothTreatmentBase(BaseModel):
+    tooth_number:int
+    dentist: str
+    procedure: str
+    treatment_date : date
+    status: str = "completed"    
+    notes:Optional[str]
+
+class ToothTreatmentCreate(ToothTreatmentBase):
+    patient_id: int = Field(..., description="Patient ID")
+
+class ToothTreatmentResponse(ToothTreatmentBase):
+    id: int
+    patient_id: int
+    recorded_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    
 # --- REPORT SCHEMAS ---
 class ClinicalReportBase(BaseModel):
     report_type: str = Field(..., description="Perio Assessment, Treatment Plan, Progress, Final Diagnosis")
@@ -244,10 +264,11 @@ class LoginResponse(BaseModel):
     user: UserResponse
 
 class TokenData(BaseModel):
-    """Decoded payload from a mock JWT token."""
     user_id: int
     username: str
     role: str
+    linked_patient_id: int | None = None
+    name: str
 
 
 # ── B2/B3: Chat Schemas ───────────────────────────────────────────────────────
@@ -392,3 +413,4 @@ class DentitionChartResponse(BaseModel):
     dentition_type: DentitionType
     total_teeth: int
     teeth: List[PatientToothRecordResponse]
+
